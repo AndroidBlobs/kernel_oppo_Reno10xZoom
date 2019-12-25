@@ -857,6 +857,28 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 	if (vma->vm_flags & VM_LOCKED)
 		mss->pss_locked += mss->pss;
 
+    #ifdef VENDOR_EDIT //yixue.ge@bsp.drv modify for android.bg get pss too slow
+	if (strcmp(current->comm, "android.bg") == 0) {
+		if ((unsigned long)(mss->pss >> (10 + PSS_SHIFT)) > 0) {
+			seq_printf(m,
+				"Pss:            %8lu kB\n",
+			(	unsigned long)(mss->pss >> (10 + PSS_SHIFT)));
+		}
+		if ((mss->private_clean >> 10) > 0) {
+			seq_printf(m,
+				"Private_Clean:  %8lu kB\n",
+				mss->private_clean >> 10);
+		}
+		if ((mss->private_dirty >> 10) > 0) {
+			seq_printf(m,
+				"Private_Dirty:  %8lu kB\n",
+				mss->private_dirty >> 10);
+		}
+		m_cache_vma(m, vma);
+		return 0;
+	}
+    #endif /*VENDOR_EDIT*/
+
 	if (!rollup_mode) {
 		show_map_vma(m, vma, is_pid);
 		if (vma_get_anon_name(vma)) {
