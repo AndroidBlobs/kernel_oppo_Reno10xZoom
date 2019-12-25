@@ -32,7 +32,15 @@
 #define NETLINK_SOCKEV		23	/* Socket Administrative Events */
 #define NETLINK_INET_DIAG	NETLINK_SOCK_DIAG
 
-#define MAX_LINKS 32		
+#ifndef VENDOR_EDIT
+//Yuan.Huang@PSW.CN.WiFi.Network.internet.1461349, 2018/06/18,
+//Add for WeChat lucky money recognition
+#define MAX_LINKS 33
+#else /* VENDOR_EDIT */
+#define NETLINK_OPPO_NF_HOOKS	32	/*OPPO netfilter hooks*/
+
+#define MAX_LINKS 35
+#endif /* VENDOR_EDIT */
 
 struct sockaddr_nl {
 	__kernel_sa_family_t	nl_family;	/* AF_NETLINK	*/

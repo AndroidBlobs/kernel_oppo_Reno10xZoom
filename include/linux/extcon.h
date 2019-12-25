@@ -76,6 +76,13 @@
 #define EXTCON_JACK_SPDIF_IN	26	/* Sony Philips Digital InterFace */
 #define EXTCON_JACK_SPDIF_OUT	27
 
+#ifdef VENDOR_EDIT
+//Le.Li@PSW.MM.AudioDriver.Feature.SelfstickDetect, 2018/04/30, add for selfstick detect
+#define EXTCON_JACK_SELFSTICK_BTN_PLUG_IN	30
+#define EXTCON_JACK_SELFSTICK_BTN_SHORT_PRESS	31
+#define EXTCON_JACK_SELFSTICK_BTN_LONG_PRESS	32
+#endif /* VENDOR_EDIT */
+
 /* Display external connector */
 #define EXTCON_DISP_HDMI	40	/* High-Definition Multimedia Interface */
 #define EXTCON_DISP_MHL		41	/* Mobile High-Definition Link */

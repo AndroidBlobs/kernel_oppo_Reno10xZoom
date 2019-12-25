@@ -50,4 +50,10 @@ struct __compat_mtp_event {
 						struct __compat_mtp_file_range)
 #endif
 #endif
+
+#ifdef VENDOR_EDIT
+//yan.chen@Swdp.shanghai, 2015/12/3, add mtp callback for hyp
+extern int mtp_register_notifier(struct notifier_block *nb);
+extern int mtp_unregister_notifier(struct notifier_block *nb);
+#endif /*VENDOR_EDIT*/
 #endif /* __LINUX_USB_F_MTP_H */

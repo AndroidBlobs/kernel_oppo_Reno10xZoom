@@ -925,6 +925,12 @@ extern void arch_set_freq_scale(struct cpumask *cpus, unsigned long cur_freq,
 extern void arch_set_max_freq_scale(struct cpumask *cpus,
 				    unsigned long policy_max_freq);
 
+#ifdef VENDOR_EDIT
+//cuixiaogang@swdp.2018.03.08 add support for hypnus
+struct cpufreq_frequency_table *cpufreq_frequency_get_table(unsigned int cpu);
+struct list_head *get_cpufreq_policy_list(void);
+#endif /* VENDOR_EDIT */
+
 /* the following are really really optional */
 extern struct freq_attr cpufreq_freq_attr_scaling_available_freqs;
 extern struct freq_attr cpufreq_freq_attr_scaling_boost_freqs;
@@ -936,6 +942,4 @@ unsigned int cpufreq_generic_get(unsigned int cpu);
 int cpufreq_generic_init(struct cpufreq_policy *policy,
 		struct cpufreq_frequency_table *table,
 		unsigned int transition_latency);
-
-extern unsigned int cpuinfo_max_freq_cached;
 #endif /* _LINUX_CPUFREQ_H */

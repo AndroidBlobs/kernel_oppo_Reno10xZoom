@@ -72,6 +72,11 @@ struct se_geni_rsc {
 
 #define PINCTRL_DEFAULT	"default"
 #define PINCTRL_SLEEP	"sleep"
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.CHG.Basic, 2018/04/05, sjc Add for charging */
+#define PINCTRL_PULLDOWN	"pulldown"
+#define PINCTRL_PULLUP		"pullup"
+#endif
 
 #define KHz(freq) (1000 * (freq))
 
