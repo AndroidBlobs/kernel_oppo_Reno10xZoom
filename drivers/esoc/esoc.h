@@ -29,12 +29,17 @@
 
 extern void *ipc_log;
 
-#define esoc_mdm_log(__msg, ...) \
+#ifndef VENDOR_EDIT
+//Wanghao@BSP.Kernel.Function 2018/12/07, add for 5G modem dump issue
+/*#define esoc_mdm_log(__msg, ...) \
 do { \
 	if (ipc_log) \
 		ipc_log_string(ipc_log, \
 			"[%s]: "__msg, __func__, ##__VA_ARGS__); \
-} while (0)
+} while (0)*/
+#else
+#define esoc_mdm_log(__msg, ...) pr_err("[ESCO_R]: " __msg, ##__VA_ARGS__)
+#endif
 
 #define ESOC_DEV_MAX		4
 #define ESOC_NAME_LEN		20

@@ -144,6 +144,25 @@ struct __extcon_info {
 		.name = "SPDIF-OUT",
 	},
 
+#ifdef VENDOR_EDIT
+//Le.Li@PSW.MM.AudioDriver.Feature.SelfstickDetect, 2018/04/30, add for selfstick detect
+	[EXTCON_JACK_SELFSTICK_BTN_PLUG_IN] = {
+		.type = EXTCON_TYPE_JACK,
+		.id = EXTCON_JACK_SELFSTICK_BTN_PLUG_IN,
+		.name = "SELFSTICK_IN",
+	},
+	[EXTCON_JACK_SELFSTICK_BTN_SHORT_PRESS] = {
+		.type = EXTCON_TYPE_JACK,
+		.id = EXTCON_JACK_SELFSTICK_BTN_SHORT_PRESS,
+		.name = "SELFSTICK-BTN-PRESS",
+	},
+	[EXTCON_JACK_SELFSTICK_BTN_LONG_PRESS] = {
+		.type = EXTCON_TYPE_JACK,
+		.id = EXTCON_JACK_SELFSTICK_BTN_LONG_PRESS,
+		.name = "SELFSTICK-BTN-LPRESS",
+	},
+#endif /* VENDOR_EDIT */
+
 	/* Display external connector */
 	[EXTCON_DISP_HDMI] = {
 		.type = EXTCON_TYPE_DISP,

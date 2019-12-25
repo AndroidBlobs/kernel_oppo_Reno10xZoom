@@ -710,6 +710,12 @@ static int devfreq_bw_hwmon_get_freq(struct devfreq *df,
 {
 	struct hwmon_node *node = df->data;
 
+#ifdef VENDOR_EDIT
+//cheng.huang@SRC.hypnus.2019.02.27. add to avoid race condition
+	if (!node)
+		return -ENODEV;
+#endif /* VENDOR_EDIT */
+
 	/* Suspend/resume sequence */
 	if (!node->mon_started) {
 		*freq = node->resume_freq;

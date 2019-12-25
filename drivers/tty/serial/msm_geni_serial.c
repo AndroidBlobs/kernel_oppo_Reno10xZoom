@@ -29,6 +29,10 @@
 #include <linux/slab.h>
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
+#ifdef VENDOR_EDIT
+//Nanwei.Deng@BSP.CHG.Basic 2018/05/01 add for console
+#include <soc/oppo/boot_mode.h>
+#endif /* VENDOR_EDIT */
 
 /* UART specific GENI registers */
 #define SE_UART_LOOPBACK_CFG		(0x22C)
@@ -197,6 +201,29 @@ static atomic_t uart_line_id = ATOMIC_INIT(0);
 
 static struct msm_geni_serial_port msm_geni_console_port;
 static struct msm_geni_serial_port msm_geni_serial_ports[GENI_UART_NR_PORTS];
+#ifdef VENDOR_EDIT
+//Nanwei.Deng@BSP.CHG.Basic 2018/05/01  Add for debug console reg issue 969323*/
+bool boot_with_console(void)
+{
+#ifdef CONFIG_OPPO_ENG_BUILD
+	return false;
+#endif
+
+#ifdef CONFIG_OPPO_DAILY_BUILD
+	return true;
+#else
+
+	if(get_boot_mode() == MSM_BOOT_MODE__FACTORY)
+	{
+		return true;
+	}
+	else {
+		return false;
+	}
+#endif /* CONFIG_OPPO_DAILY_BUILD */
+}
+EXPORT_SYMBOL(boot_with_console);
+#endif/*VENDOR_EDIT*/
 
 static void msm_geni_serial_config_port(struct uart_port *uport, int cfg_flags)
 {

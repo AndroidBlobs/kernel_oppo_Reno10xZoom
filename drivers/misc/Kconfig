@@ -553,6 +553,17 @@ config QPNP_MISC
 	  and the driver provides an API to check if this interrupt
 	  is available on the current PMIC chip.
 
+#ifdef VENDOR_EDIT
+#Fuchun.Liao@BSP.CHG.Basic 2018/11/26 modify for rf cable monitor
+config OPPO_RF_CABLE_MONITOR
+	bool "OPPO rf cable monitor system"
+	depends on OF
+	select PINMUX
+	default n
+	help
+	  Say Y here to enable OPPO rf cable monitor system support
+#endif /* VENDOR_EDIT */
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
@@ -565,7 +576,18 @@ source "drivers/misc/mic/Kconfig"
 source "drivers/misc/genwqe/Kconfig"
 source "drivers/misc/echo/Kconfig"
 source "drivers/misc/cxl/Kconfig"
+#ifdef VENDOR_EDIT//Fanhong.Kong@ProDrv.CHG,add 2018/10/25 for vib aw8697
+source "drivers/misc/aw8697_haptic/Kconfig"
+#endif
+
+#ifdef VENDOR_EDIT
+#//Cong.Dai@PSW.BSP.TP, 2018/11/05, Add for support press sensor
+source "drivers/misc/cs_press/Kconfig"
+#endif /* VENDOR_EDIT */
 source "drivers/misc/fpr_FingerprintCard/Kconfig"
+#ifdef VENDOR_EDIT
+source "drivers/misc/oppo_motor/Kconfig"
+#endif /* VENDOR_EDIT */
 endmenu
 
 config OKL4_LINK_SHBUF

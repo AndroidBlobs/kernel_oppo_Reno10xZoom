@@ -4565,6 +4565,7 @@ static void hdmi_tx_put_dt_data(struct device *dev,
 
 	if (!dev) {
 		DEV_ERR("%s: invalid device\n", __func__);
+<<<<<<< HEAD
 		return;
 	}
 
@@ -4573,6 +4574,16 @@ static void hdmi_tx_put_dt_data(struct device *dev,
 		return;
 	}
 
+=======
+		return;
+	}
+
+	if (!pdata) {
+		DEV_ERR("%s: invalid platform data\n", __func__);
+		return;
+	}
+
+>>>>>>> AU_LINUX_ANDROID_LA.UM.7.1.R1.09.00.00.461.067_r61507.1
 	if (pdata->hdmi_pclk_rcg)
 		devm_clk_put(dev, pdata->hdmi_pclk_rcg);
 	if (pdata->ext_hdmi_pixel_clk)

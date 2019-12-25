@@ -866,6 +866,10 @@ static int qpnp_lpg_pwm_enable(struct pwm_chip *pwm_chip,
 {
 	struct qpnp_lpg_channel *lpg;
 	int rc = 0;
+#ifdef VENDOR_EDIT
+//zhye@BSP.Sensor.Function, 2018-11-13, add for reenable pwm  case03747803
+	u8 val;
+#endif
 
 	lpg = pwm_dev_to_qpnp_lpg(pwm_chip, pwm);
 	if (lpg == NULL) {
@@ -897,7 +901,14 @@ static int qpnp_lpg_pwm_enable(struct pwm_chip *pwm_chip,
 	if (rc < 0)
 		dev_err(pwm_chip->dev, "Enable PWM output failed for channel %d, rc=%d\n",
 						lpg->lpg_idx, rc);
-
+#ifdef VENDOR_EDIT
+//zhye@BSP.Sensor.Function, 2018-11-13, add for reenable pwm  case03747803
+	val = LPG_PWM_VALUE_SYNC;
+	rc = qpnp_lpg_write(lpg, REG_LPG_PWM_SYNC, val);
+	if (rc < 0) {
+		dev_err(lpg->chip->dev, "Write LPG_PWM_SYNC failed, rc=%d\n", rc);
+	}
+#endif
 	return rc;
 }
 

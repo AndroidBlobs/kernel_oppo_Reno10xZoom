@@ -34,11 +34,12 @@
 #include <linux/pm.h>
 #include <linux/log2.h>
 #include <linux/irq.h>
-#include <soc/qcom/scm.h>
 #include "../core.h"
 #include "../pinconf.h"
 #include "pinctrl-msm.h"
 #include "../pinctrl-utils.h"
+
+
 
 #define MAX_NR_GPIO 300
 #define PS_HOLD_OFFSET 0x820
@@ -77,8 +78,6 @@ struct msm_pinctrl {
 	/* For holding per tile virtual address */
 	void __iomem *per_tile_regs[4];
 #endif
-	phys_addr_t spi_cfg_regs;
-	phys_addr_t spi_cfg_end;
 };
 
 static struct msm_pinctrl *msm_pinctrl_data;
@@ -530,6 +529,21 @@ static int msm_gpio_get(struct gpio_chip *chip, unsigned offset)
 	val = readl(base + g->io_reg);
 	return !!(val & BIT(g->in_bit));
 }
+#ifdef VENDOR_EDIT
+//Fuchun.Liao@Mobile.BSP.CHG 2016-01-19 add for oppo vooc adapter update
+static int msm_gpio_get_oppo_vooc(struct gpio_chip *chip, unsigned offset)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = gpiochip_get_data(chip);
+	u32 val;
+
+	//pr_err("%s enter\n", __func__);
+	g = &pctrl->soc->groups[offset];
+
+	val = readl_oppo_vooc(pctrl->regs + g->io_reg);
+	return !!(val & BIT(g->in_bit));
+}
+#endif /* VENDOR_EDIT */
 
 static void msm_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 {
@@ -553,9 +567,57 @@ static void msm_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 
 	raw_spin_unlock_irqrestore(&pctrl->lock, flags);
 }
+#ifdef VENDOR_EDIT
+//Fuchun.Liao@Mobile.BSP.CHG 2016-01-19 add for oppo vooc adapter update
+static void msm_gpio_set_oppo_vooc(struct gpio_chip *chip, unsigned offset, int value)
+{
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = gpiochip_get_data(chip);
+	u32 val;
 
+	//pr_err("%s enter\n", __func__);
+	g = &pctrl->soc->groups[offset];
+
+	//spin_lock_irqsave(&pctrl->lock, flags);
+
+	val = readl_oppo_vooc(pctrl->regs + g->io_reg);
+	if (value)
+		val |= BIT(g->out_bit);
+	else
+		val &= ~BIT(g->out_bit);
+	writel_oppo_vooc(val, pctrl->regs + g->io_reg);
+
+	//spin_unlock_irqrestore(&pctrl->lock, flags);
+}
+#endif /* VENDOR_EDIT */
 #ifdef CONFIG_DEBUG_FS
 #include <linux/seq_file.h>
+
+#ifdef VENDOR_EDIT
+	static const char * const values[] = {
+		"high",
+		"low"
+	};
+	
+	static const char * const intr_enables[] = {
+		"int_disable",
+		"int_enabe"
+	};
+	
+	static const char * const intr_polaritys[] = {
+		"active-low-",
+		"active-high-"
+	};
+
+	
+	static const char * const intr_detections[] = {
+		"level",
+		"pos_edge",
+		"neg_edge",
+		"dual_edge"
+	};
+	
+#endif
 
 static void msm_gpio_dbg_show_one(struct seq_file *s,
 				  struct pinctrl_dev *pctldev,
@@ -570,6 +632,15 @@ static void msm_gpio_dbg_show_one(struct seq_file *s,
 	int is_out;
 	int drive;
 	int pull;
+	#ifdef VENDOR_EDIT
+	int in_value;
+	int out_value;
+	int intr_enable;
+	int intr_polarity;
+	int intr_detection;
+	u32 io_reg;
+	u32 intr_cfg_reg;
+	#endif
 	u32 ctl_reg;
 
 	static const char * const pulls[] = {
@@ -587,10 +658,38 @@ static void msm_gpio_dbg_show_one(struct seq_file *s,
 	func = (ctl_reg >> g->mux_bit) & 7;
 	drive = (ctl_reg >> g->drv_bit) & 7;
 	pull = (ctl_reg >> g->pull_bit) & 3;
+	
+#ifdef VENDOR_EDIT
+    printk("  g->in_bit = %x,g->on_bit = %x,  g->intr_enable = %d,g->intr_polarity = %d, intr_detection = %d\n",g->in_bit, g->out_bit,g->intr_enable_bit,g->intr_polarity_bit,g->intr_detection_bit);
+	io_reg = readl(base + g->io_reg);
+	intr_cfg_reg = readl(base + g->intr_cfg_reg);
 
+	in_value = !!(io_reg & BIT(g->in_bit));
+	out_value = !!(io_reg & BIT(g->out_bit));
+	intr_enable = (intr_cfg_reg >> g->intr_enable_bit) & 1;
+	intr_polarity = (intr_cfg_reg >> g->intr_polarity_bit) & 1;
+	intr_detection = (intr_cfg_reg >> g->intr_detection_bit) & 3;
+	
+	
+	seq_printf(s, " %-8s: ", g->name);
+	seq_printf(s, " %d  ", func);
+	
+	if(is_out)
+	  	seq_printf(s, "out(%-4s)",values[out_value]);
+	else
+		seq_printf(s, "in (%-4s)",values[in_value]);
+
+	seq_printf(s, " %dmA", msm_regval_to_drive(drive));
+	seq_printf(s, " %-9s", pulls[pull]);
+	seq_printf(s, " %-11s", intr_enables[intr_enable]);
+	seq_printf(s, " %s%s", intr_polaritys[intr_polarity], intr_detections[intr_detection]);	
+#endif
+
+#ifndef VENDOR_EDIT
 	seq_printf(s, " %-8s: %-3s %d", g->name, is_out ? "out" : "in", func);
 	seq_printf(s, " %dmA", msm_regval_to_drive(drive));
 	seq_printf(s, " %s", pulls[pull]);
+#endif
 }
 
 static void msm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
@@ -613,7 +712,15 @@ static const struct gpio_chip msm_gpio_template = {
 	.direction_output = msm_gpio_direction_output,
 	.get_direction    = msm_gpio_get_direction,
 	.get              = msm_gpio_get,
+#ifdef VENDOR_EDIT
+//Fuchun.Liao@Mobile.BSP.CHG 2016-01-19 add for oppo vooc adapter update
+	.get_oppo_vooc	  = msm_gpio_get_oppo_vooc,
+#endif /* VENDOR_EDIT */
 	.set              = msm_gpio_set,
+#ifdef VENDOR_EDIT
+//Fuchun.Liao@Mobile.BSP.CHG 2016-01-19 add for oppo vooc adapter update
+	.set_oppo_vooc	  = msm_gpio_set_oppo_vooc,
+#endif /* VENDOR_EDIT */
 	.request          = gpiochip_generic_request,
 	.free             = gpiochip_generic_free,
 	.dbg_show         = msm_gpio_dbg_show,
@@ -1386,12 +1493,8 @@ static void add_dirconn_tlmm(struct irq_data *d, irq_hw_number_t irq)
 	struct irq_desc *desc = irq_data_to_desc(d);
 	struct irq_data *parent_data = irq_get_irq_data(desc->parent_irq);
 	struct irq_data *dir_conn_data = NULL;
-	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
 	int offset = 0;
-	unsigned int virt = 0, val = 0;
-	struct msm_pinctrl *pctrl;
-	phys_addr_t spi_cfg_reg = 0;
-	unsigned long flags;
+	unsigned int virt = 0;
 
 	offset = select_dir_conn_mux(d, &irq);
 	if (offset < 0 || !parent_data)
@@ -1407,29 +1510,6 @@ static void add_dirconn_tlmm(struct irq_data *d, irq_hw_number_t irq)
 	dir_conn_data = &(desc->irq_data);
 
 	if (dir_conn_data) {
-
-		pctrl = gpiochip_get_data(gc);
-		if (pctrl->spi_cfg_regs) {
-			spi_cfg_reg = pctrl->spi_cfg_regs +
-					((dir_conn_data->hwirq - 32) / 32) * 4;
-			if (spi_cfg_reg < pctrl->spi_cfg_end) {
-				raw_spin_lock_irqsave(&pctrl->lock, flags);
-				val = scm_io_read(spi_cfg_reg);
-				/*
-				 * Clear the respective bit for edge type
-				 * interrupt
-				 */
-				val &= ~(1 << ((dir_conn_data->hwirq - 32)
-									% 32));
-				WARN_ON(scm_io_write(spi_cfg_reg, val));
-				raw_spin_unlock_irqrestore(&pctrl->lock, flags);
-			} else
-				pr_err("%s: type config failed for SPI: %lu\n",
-								 __func__, irq);
-		} else
-			pr_debug("%s: type config for SPI is not supported\n",
-								__func__);
-
 		if (dir_conn_data->chip && dir_conn_data->chip->irq_set_type)
 			dir_conn_data->chip->irq_set_type(dir_conn_data,
 					IRQ_TYPE_EDGE_RISING);
@@ -1468,18 +1548,10 @@ static int msm_dirconn_irq_set_type(struct irq_data *d, unsigned int type)
 {
 	struct irq_desc *desc = irq_data_to_desc(d);
 	struct irq_data *parent_data = irq_get_irq_data(desc->parent_irq);
-	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
 	irq_hw_number_t irq = 0;
-	struct msm_pinctrl *pctrl;
-	phys_addr_t spi_cfg_reg = 0;
-	unsigned int config_val = 0;
-	unsigned int val = 0;
-	unsigned long flags;
 
 	if (!parent_data)
 		return 0;
-
-	pctrl = gpiochip_get_data(gc);
 
 	if (type == IRQ_TYPE_EDGE_BOTH)
 		add_dirconn_tlmm(d, irq);
@@ -1488,33 +1560,10 @@ static int msm_dirconn_irq_set_type(struct irq_data *d, unsigned int type)
 	else if (is_gpio_tlmm_dc(d, type))
 		type = IRQ_TYPE_EDGE_RISING;
 
-
-	/*
-	 * Shared SPI config for Edge is 0 and
-	 * for Level interrupt is 1
-	 */
-	if (type & (IRQ_TYPE_LEVEL_LOW | IRQ_TYPE_LEVEL_HIGH)) {
+	if (type & (IRQ_TYPE_LEVEL_LOW | IRQ_TYPE_LEVEL_HIGH))
 		irq_set_handler_locked(d, handle_level_irq);
-		config_val = 1;
-	} else if (type & (IRQ_TYPE_EDGE_FALLING | IRQ_TYPE_EDGE_RISING))
+	else if (type & (IRQ_TYPE_EDGE_FALLING | IRQ_TYPE_EDGE_RISING))
 		irq_set_handler_locked(d, handle_edge_irq);
-
-	if (pctrl->spi_cfg_regs && type != IRQ_TYPE_NONE) {
-		spi_cfg_reg = pctrl->spi_cfg_regs +
-				((parent_data->hwirq - 32) / 32) * 4;
-		if (spi_cfg_reg < pctrl->spi_cfg_end) {
-			raw_spin_lock_irqsave(&pctrl->lock, flags);
-			val = scm_io_read(spi_cfg_reg);
-			val &= ~(1 << ((parent_data->hwirq - 32) % 32));
-			if (config_val)
-				val |= (1 << ((parent_data->hwirq - 32)  % 32));
-			WARN_ON(scm_io_write(spi_cfg_reg, val));
-			raw_spin_unlock_irqrestore(&pctrl->lock, flags);
-		} else
-			pr_err("%s: type config failed for SPI: %lu\n",
-							 __func__, irq);
-	} else
-		pr_debug("%s: SPI type config is not supported\n", __func__);
 
 	if (parent_data->chip->irq_set_type)
 		return parent_data->chip->irq_set_type(parent_data, type);
@@ -1777,7 +1826,6 @@ int msm_pinctrl_probe(struct platform_device *pdev,
 	struct msm_pinctrl *pctrl;
 	struct resource *res;
 	int ret;
-	char *key;
 
 	msm_pinctrl_data = pctrl = devm_kzalloc(&pdev->dev,
 				sizeof(*pctrl), GFP_KERNEL);
@@ -1791,8 +1839,7 @@ int msm_pinctrl_probe(struct platform_device *pdev,
 
 	raw_spin_lock_init(&pctrl->lock);
 
-	key = "pinctrl";
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, key);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pctrl->regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(pctrl->regs))
 		return PTR_ERR(pctrl->regs);
@@ -1811,16 +1858,8 @@ int msm_pinctrl_probe(struct platform_device *pdev,
 	}
 #endif
 
-	key = "pdc";
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, key);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	pctrl->pdc_regs = devm_ioremap_resource(&pdev->dev, res);
-
-	key = "spi_cfg";
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, key);
-	if (res) {
-		pctrl->spi_cfg_regs = res->start;
-		pctrl->spi_cfg_end = res->end;
-	}
 
 	msm_pinctrl_setup_pm_reset(pctrl);
 

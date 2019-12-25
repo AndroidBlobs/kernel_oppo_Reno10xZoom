@@ -39,6 +39,11 @@ module_param(boot_fail_action, uint, 0644);
 MODULE_PARM_DESC(boot_fail_action,
 "Actions: 0:Retry PON; 1:Cold reset; 2:Power-down; 3:APQ Panic; 4:No action");
 
+//#ifdef VENDOR_EDIT
+//Wanghao@BSP.Kernel.Function 2018/12/07, add for 5G modem dump issue
+bool modem_5G_panic = false;
+//#endif
+
 enum esoc_pon_state {
 	PON_INIT,
 	PON_SUCCESS,
@@ -74,6 +79,10 @@ struct mdm_drv {
 
 static void esoc_client_link_power_off(struct esoc_clink *esoc_clink,
 							bool mdm_crashed);
+//#ifdef VENDOR_EDIT
+//Wanghao@BSP.Kernel.Function 2018/12/07, add for 5G modem dump issue
+extern int get_download_mode(void);
+//#endif
 
 static int esoc_msm_restart_handler(struct notifier_block *nb,
 		unsigned long action, void *data)
@@ -367,6 +376,11 @@ static int mdm_subsys_powerup(const struct subsys_desc *crashed_subsys)
 								subsys);
 	struct mdm_drv *mdm_drv = esoc_get_drv_data(esoc_clink);
 	const struct esoc_clink_ops * const clink_ops = esoc_clink->clink_ops;
+	//#ifdef VENDOR_EDIT
+	//Wanghao@BSP.Kernel.Function 2018/12/07, add for 5G modem dump issue
+	struct mdm_ctrl *mdm = get_esoc_clink_data(mdm_drv->esoc_clink);
+	static int modem_pon_success_time = 0;
+	//#endif
 	int timeout = INT_MAX;
 	u8 pon_trial = 1;
 
@@ -438,10 +452,36 @@ static int mdm_subsys_powerup(const struct subsys_desc *crashed_subsys)
 			"Boot failed. Doing cleanup and attempting to retry\n");
 			pon_trial++;
 			mdm_subsys_retry_powerup_cleanup(esoc_clink);
+			//#ifdef VENDOR_EDIT
+			//Wanghao@BSP.Kernel.Function 2018/12/07, add for 5G modem dump issue
+			if(!get_download_mode() || modem_pon_success_time > 0) {
+				pr_err("[ESCO_R]: minidump open or not in bring up, skip trigger 5G modem dump!");
+			} else {
+				pr_err("[ESCO_R]: trigger 5G modem dump!\n");
+				modem_5G_panic = true;
+			}
+			//#endif
 		} else if (mdm_drv->pon_state == PON_SUCCESS) {
+			//#ifdef VENDOR_EDIT
+			//Wanghao@BSP.Kernel.Function 2018/12/07, add for 5G modem dump issue
+			modem_pon_success_time++;
+			pr_err("[ESCO_R]: modem pon success, modem_pon_success_time = %d\n", modem_pon_success_time);
+			//#endif
 			break;
 		}
 	} while (pon_trial <= n_pon_tries);
+
+    //because two times powerup flow, make sure SDX50 is ready
+    //#ifdef VENDOR_EDIT
+    //Wanghao@BSP.Kernel.Function 2018/12/07, add for 5G modem dump issue
+    pr_err("[ESCO_R]: modem_5G_panic is %d\n", modem_5G_panic);
+    if(modem_5G_panic == 1) {
+        pr_err("[ESCO_R]: delay 5s for modem dump\n");
+        msleep(5000);
+        mdm_power_down(mdm);
+        panic("[ESCO_R]: get the SDX50 dump"); // warm reset device
+    }
+    //#endif
 
 	return 0;
 }
