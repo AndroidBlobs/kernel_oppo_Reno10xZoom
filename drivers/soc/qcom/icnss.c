@@ -641,15 +641,6 @@ bool icnss_is_rejuvenate(void)
 }
 EXPORT_SYMBOL(icnss_is_rejuvenate);
 
-bool icnss_is_pdr(void)
-{
-	if (!penv)
-		return false;
-	else
-		return test_bit(ICNSS_PDR, &penv->state);
-}
-EXPORT_SYMBOL(icnss_is_pdr);
-
 int icnss_power_off(struct device *dev)
 {
 	struct icnss_priv *priv = dev_get_drvdata(dev);
@@ -962,11 +953,9 @@ static int icnss_pd_restart_complete(struct icnss_priv *priv)
 
 	icnss_call_driver_shutdown(priv);
 
-	clear_bit(ICNSS_PDR, &priv->state);
 	clear_bit(ICNSS_REJUVENATE, &priv->state);
 	clear_bit(ICNSS_PD_RESTART, &priv->state);
 	priv->early_crash_ind = false;
-	priv->is_ssr = false;
 
 	if (!priv->ops || !priv->ops->reinit)
 		goto out;
@@ -1314,8 +1303,6 @@ static int icnss_modem_notifier_nb(struct notifier_block *nb,
 	if (code != SUBSYS_BEFORE_SHUTDOWN)
 		return NOTIFY_OK;
 
-	priv->is_ssr = true;
-
 	if (code == SUBSYS_BEFORE_SHUTDOWN && !notif->crashed &&
 	    test_bit(ICNSS_BLOCK_SHUTDOWN, &priv->state)) {
 		if (!wait_for_completion_timeout(&priv->unblock_shutdown,
@@ -1440,9 +1427,6 @@ static int icnss_service_notifier_notify(struct notifier_block *nb,
 
 	if (notification != SERVREG_NOTIF_SERVICE_STATE_DOWN_V01)
 		goto done;
-
-	if (!priv->is_ssr)
-		set_bit(ICNSS_PDR, &priv->state);
 
 	event_data = kzalloc(sizeof(*event_data), GFP_KERNEL);
 
@@ -2110,6 +2094,7 @@ int icnss_trigger_recovery(struct device *dev)
 	if (test_bit(ICNSS_PD_RESTART, &priv->state)) {
 		icnss_pr_err("PD recovery already in progress: state: 0x%lx\n",
 			     priv->state);
+		ret = -EPERM;
 		goto out;
 	}
 
@@ -2638,9 +2623,6 @@ static int icnss_stats_show_state(struct seq_file *s, struct icnss_priv *priv)
 			continue;
 		case ICNSS_BLOCK_SHUTDOWN:
 			seq_puts(s, "BLOCK SHUTDOWN");
-			continue;
-		case ICNSS_PDR:
-			seq_puts(s, "PDR TRIGGERED");
 		}
 
 		seq_printf(s, "UNKNOWN-%d", i);
@@ -3070,6 +3052,26 @@ static void icnss_debugfs_destroy(struct icnss_priv *priv)
 	debugfs_remove_recursive(priv->root_dentry);
 }
 
+#ifdef VENDOR_EDIT
+//Laixin@PSW.CN.WiFi.Basic.Switch.1069763, 2018/08/08
+//Add for: check fw status for switch issue
+static void icnss_create_fw_state_kobj(void);
+static ssize_t icnss_show_fw_ready(struct device_driver *driver, char *buf)
+{
+	bool firmware_ready = icnss_is_fw_ready();
+	return sprintf(buf, "%s", (firmware_ready ? "ready" : "not_ready"));
+}
+
+struct driver_attribute fw_ready_attr = {
+	.attr = {
+		.name = "firmware_ready",
+		.mode = S_IRUGO,
+	},
+	.show = icnss_show_fw_ready,
+	//read only so we don't need to impl store func
+};
+#endif /* VENDOR_EDIT */
+
 static int icnss_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -3264,6 +3266,12 @@ static int icnss_probe(struct platform_device *pdev)
 
 	penv = priv;
 
+	#ifdef VENDOR_EDIT
+	//Laixin@PSW.CN.WiFi.Basic.Switch.1069763, 2018/08/08
+	//Add for: check fw status for switch issue
+	icnss_create_fw_state_kobj();
+	#endif /* VENDOR_EDIT */
+	
 	init_completion(&priv->unblock_shutdown);
 
 	icnss_pr_info("Platform driver probed successfully\n");
@@ -3452,6 +3460,16 @@ static struct platform_driver icnss_driver = {
 		.of_match_table = icnss_dt_match,
 	},
 };
+
+#ifdef VENDOR_EDIT
+//Laixin@PSW.CN.WiFi.Basic.Switch.1069763, 2018/08/08
+//Add for: check fw status for switch issue
+static void icnss_create_fw_state_kobj(void) {
+	if (driver_create_file(&(icnss_driver.driver), &fw_ready_attr)) {
+		icnss_pr_info("failed to create %s", fw_ready_attr.attr.name);
+	}
+}
+#endif /* VENDOR_EDIT */
 
 static int __init icnss_initialize(void)
 {

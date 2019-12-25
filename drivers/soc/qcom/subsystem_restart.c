@@ -838,6 +838,26 @@ struct subsys_device *find_subsys_device(const char *str)
 }
 EXPORT_SYMBOL(find_subsys_device);
 
+#ifdef VENDOR_EDIT
+/* Fuchun.Liao@BSP.CHG.Basic 2018/11/27 modify for rf cable detect */
+int op_restart_modem(void)
+{
+	struct subsys_device *subsys = find_subsys_device("modem");
+	int restart_level;
+
+	if (!subsys)
+		return -ENODEV;
+	pr_err("%s\n", __func__);
+	restart_level = subsys->restart_level;
+	subsys->restart_level = RESET_SUBSYS_COUPLED;
+	if (subsystem_restart("modem") == -ENODEV)
+		pr_err("%s: SSR call modem failed\n", __func__);
+	subsys->restart_level = restart_level;
+	return 0;
+}
+EXPORT_SYMBOL(op_restart_modem);
+#endif /* VENDOR_EDIT */
+
 static int subsys_start(struct subsys_device *subsys)
 {
 	int ret;

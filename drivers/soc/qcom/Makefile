@@ -94,5 +94,9 @@ obj-$(CONFIG_QCOM_MEM_OFFLINE) += mem-offline.o
 obj-$(CONFIG_QCOM_CDSP_RM) += cdsprm.o
 obj-$(CONFIG_QCOM_CX_IPEAK) += cx_ipeak.o
 obj-$(CONFIG_QCOM_AOP_DDR_MESSAGING) += aop_ddr_msgs.o
+#ifdef VENDOR_EDIT
+#Le.Li@PSW.MM.AudioDriver.HeadsetDet, 2018/11/07, Modify SW to max20328
+obj-$(CONFIG_QCOM_MAX20328_I2C)	+= max20328.o
+#endif
 obj-$(CONFIG_MSM_HAB) += hab/
 obj-$(CONFIG_QCOM_HYP_CORE_CTL) += hyp_core_ctl.o

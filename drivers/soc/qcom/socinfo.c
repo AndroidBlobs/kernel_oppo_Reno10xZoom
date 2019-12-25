@@ -325,7 +325,23 @@ static struct msm_soc_info cpu_of_id[] = {
 	[291] = {MSM_CPU_8996, "APQ8096"},
 	[305] = {MSM_CPU_8996, "MSM8996pro"},
 	[312] = {MSM_CPU_8996, "APQ8096pro"},
+#if defined(VENDOR_EDIT) && defined(CONFIG_CONFIDENTIAL_VERSION)
+/*Fanhong.Kong@PSW.BSP.CHG, 2019-02-12
+ *Obscure the cpu model number in confidential version
+ */
+	/* sm8150 ID */
+	[339] = {MSM_CPU_SM8150, "SDM845"},
 
+	/* sm8150p ID */
+	[361] = {MSM_CPU_SM8150, "SDM845"},
+
+	/* sa8155 ID */
+	[362] = {MSM_CPU_SA8155, "SDM845"},
+
+	/* sa8155P ID */
+	[367] = {MSM_CPU_SA8155P, "SDM845"},
+
+#else
 	/* sm8150 ID */
 	[339] = {MSM_CPU_SM8150, "SM8150"},
 
@@ -337,7 +353,7 @@ static struct msm_soc_info cpu_of_id[] = {
 
 	/* sa8155P ID */
 	[367] = {MSM_CPU_SA8155P, "SA8155P"},
-
+#endif /* VENDOR_EDIT */
 	/* sdmshrike ID */
 	[340] = {MSM_CPU_SDMSHRIKE, "SDMSHRIKE"},
 
@@ -399,7 +415,6 @@ uint32_t socinfo_get_version(void)
 {
 	return (socinfo) ? socinfo->v0_1.version : 0;
 }
-EXPORT_SYMBOL(socinfo_get_version);
 
 char *socinfo_get_build_id(void)
 {

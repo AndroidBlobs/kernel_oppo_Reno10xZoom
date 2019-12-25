@@ -738,6 +738,7 @@ static int pil_shutdown_trusted(struct pil_desc *pil)
 		       &desc);
 	scm_ret = desc.ret[0];
 
+
 	disable_unprepare_clocks(d->proxy_clks, d->proxy_clk_count);
 	disable_regulators(d, d->proxy_regs, d->proxy_reg_count, false);
 	if (d->bus_client)
@@ -797,6 +798,8 @@ static struct pil_reset_ops pil_ops_trusted = {
 	.deinit_image = pil_deinit_image_trusted,
 };
 
+#define subsys_to_drv(d) container_of(d, struct modem_data, subsys_desc)
+
 static void log_failure_reason(const struct pil_tz_data *d)
 {
 	size_t size;
@@ -819,6 +822,7 @@ static void log_failure_reason(const struct pil_tz_data *d)
 
 	strlcpy(reason, smem_reason, min(size, (size_t)MAX_SSR_REASON_LEN));
 	pr_err("%s subsystem failure reason: %s.\n", name, reason);
+
 }
 
 static int subsys_shutdown(const struct subsys_desc *subsys, bool force_stop)

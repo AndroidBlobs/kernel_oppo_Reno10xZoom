@@ -449,6 +449,7 @@ int pil_do_ramdump(struct pil_desc *desc,
 	int count = 0, ret;
 
 	if (desc->minidump_ss) {
+
 		pr_debug("Minidump : md_ss_toc->md_ss_toc_init is 0x%x\n",
 			(unsigned int)desc->minidump_ss->md_ss_toc_init);
 		pr_debug("Minidump : md_ss_toc->md_ss_enable_status is 0x%x\n",
@@ -477,6 +478,7 @@ int pil_do_ramdump(struct pil_desc *desc,
 					desc->name);
 				return pil_do_minidump(desc, minidump_dev);
 			}
+
 			pr_debug("Minidump aborted for %s\n", desc->name);
 			return -EINVAL;
 		}
