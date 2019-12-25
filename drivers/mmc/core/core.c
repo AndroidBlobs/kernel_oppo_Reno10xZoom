@@ -782,7 +782,6 @@ int mmc_init_clk_scaling(struct mmc_host *host)
 		host->ios.clock);
 
 	host->clk_scaling.enable = true;
-	host->clk_scaling.is_suspended = false;
 
 	return err;
 }
@@ -4257,9 +4256,11 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 		pr_debug("%s: card removed too slowly\n", mmc_hostname(host));
 	}
 
-	if (ret) {
+	if (ret 
+	) {
 		mmc_card_set_removed(host->card);
-		pr_debug("%s: card remove detected\n", mmc_hostname(host));
+		ret = -1;
+		pr_debug("%s: card remove detected, ret=%d\n", mmc_hostname(host),ret);
 	}
 
 	return ret;
@@ -4363,8 +4364,11 @@ void mmc_rescan(struct work_struct *work)
 
 	/* if there still is a card present, stop here */
 	if (host->bus_ops != NULL) {
-		mmc_bus_put(host);
-		goto out;
+		{
+			printk(KERN_EMERG"zhye::%s::host->bus_ops != NULL\n",__func__);
+			mmc_bus_put(host);
+			goto out;
+		}
 	}
 
 	/*
@@ -4374,8 +4378,9 @@ void mmc_rescan(struct work_struct *work)
 	mmc_bus_put(host);
 
 	mmc_claim_host(host);
-	if (mmc_card_is_removable(host) && host->ops->get_cd &&
-			host->ops->get_cd(host) == 0) {
+	if ((mmc_card_is_removable(host) && host->ops->get_cd &&
+			host->ops->get_cd(host) == 0)
+			) {
 		mmc_power_off(host);
 		mmc_release_host(host);
 		goto out;
@@ -4421,7 +4426,6 @@ void mmc_stop_host(struct mmc_host *host)
 
 	host->rescan_disable = 1;
 	cancel_delayed_work_sync(&host->detect);
-
 	/* clear pm flags now and let card drivers set them as needed */
 	host->pm_flags = 0;
 

@@ -20,7 +20,6 @@
 #include <linux/mmc/card.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
-
 #include "core.h"
 #include "card.h"
 #include "host.h"
@@ -1195,6 +1194,11 @@ static void mmc_sd_detect(struct mmc_host *host)
 		       __func__, mmc_hostname(host), err);
 		err = _mmc_detect_card_removed(host);
 	}
+#if defined(MOUNT_EXSTORAGE_IF)
+	/*ye.zhang@BSP, 2016-05-01, add for CTSI support external storage or not*/
+	if (retries)
+		err = _mmc_detect_card_removed(host);
+#endif//MOUNT_EXSTORAGE_IF
 #else
 	err = _mmc_detect_card_removed(host);
 #endif
@@ -1435,7 +1439,8 @@ int mmc_attach_sd(struct mmc_host *host)
 	 * Detect and init the card.
 	 */
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
-	retries = 5;
+    retries = 5;
+
 	while (retries) {
 		err = mmc_sd_init_card(host, rocr, NULL);
 		if (err) {
