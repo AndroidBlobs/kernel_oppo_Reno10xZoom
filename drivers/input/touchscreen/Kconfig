@@ -1254,6 +1254,14 @@ config TOUCHSCREEN_ST
 
 	  If unsure, say N.
 
+config TOUCHSCREEN_SYNAPTICS_DSX
+        bool "Synaptics Touchscreen Driver"
+        depends on I2C
+        help
+          Say Y here if you have a Synaptics Touchscreen.
+
+          If unsure, say N.
+
 source "drivers/input/touchscreen/st/Kconfig"
 
 config TOUCHSCREEN_HIMAX_CHIPSET
@@ -1277,5 +1285,10 @@ config TOUCHSCREEN_SYNAPTICS_DSX
           If unsure, say N.
 
 source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
+
+#ifdef VENDOR_EDIT
+#Wanghao@Bsp.group.Tp,2017-09-20,Added for common touchpanel driver 
+source "drivers/input/touchscreen/oppo_touchscreen/Kconfig"
+#endif
 
 endif
