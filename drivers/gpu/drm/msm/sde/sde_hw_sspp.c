@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -362,7 +362,12 @@ static void sde_hw_sspp_setup_format(struct sde_hw_pipe *ctx,
 			SDE_FETCH_CONFIG_RESET_VALUE |
 			ctx->mdp->highest_bank_bit << 18);
 		if (IS_UBWC_20_SUPPORTED(ctx->catalog->ubwc_version)) {
+#ifndef VENDOR_EDIT
+/* Gou shengjun@PSW.MM.Display.LCD.Stability
+ * delete for bug#1531511@20180824
+ */
 			alpha_en_mask = const_alpha_en ? BIT(31) : 0;
+#endif /*VENDOR_EDIT*/
 			SDE_REG_WRITE(c, SSPP_UBWC_STATIC_CTRL,
 				alpha_en_mask | (ctx->mdp->ubwc_swizzle) |
 				(ctx->mdp->highest_bank_bit << 4));
@@ -687,8 +692,7 @@ static void _sde_hw_sspp_setup_excl_rect(struct sde_hw_pipe *ctx,
 	u32 size, xy;
 	u32 idx;
 	u32 reg_xy, reg_size;
-	u32 excl_ctrl = BIT(0);
-	u32 enable_bit;
+	u32 excl_ctrl, enable_bit;
 
 	if (_sspp_subblk_offset(ctx, SDE_SSPP_SRC, &idx) || !excl_rect)
 		return;
@@ -708,10 +712,7 @@ static void _sde_hw_sspp_setup_excl_rect(struct sde_hw_pipe *ctx,
 	xy = (excl_rect->y << 16) | (excl_rect->x);
 	size = (excl_rect->h << 16) | (excl_rect->w);
 
-	/* Set if multi-rect disabled, read+modify only if multi-rect enabled */
-	if (rect_index != SDE_SSPP_RECT_SOLO)
-		excl_ctrl = SDE_REG_READ(c, SSPP_EXCL_REC_CTL + idx);
-
+	excl_ctrl = SDE_REG_READ(c, SSPP_EXCL_REC_CTL + idx);
 	if (!size) {
 		SDE_REG_WRITE(c, SSPP_EXCL_REC_CTL + idx,
 				excl_ctrl & ~enable_bit);

@@ -2181,6 +2181,7 @@ static void sde_encoder_input_event_handler(struct input_handle *handle,
 
 	priv = drm_enc->dev->dev_private;
 	sde_enc = to_sde_encoder_virt(drm_enc);
+#ifndef VENDOR_EDIT
 	if (!sde_enc->crtc || (sde_enc->crtc->index
 			>= ARRAY_SIZE(priv->disp_thread))) {
 		SDE_DEBUG_ENC(sde_enc,
@@ -2193,6 +2194,27 @@ static void sde_encoder_input_event_handler(struct input_handle *handle,
 	SDE_EVT32_VERBOSE(DRMID(drm_enc));
 
 	disp_thread = &priv->disp_thread[sde_enc->crtc->index];
+#else /* VENDOR_EDIT */
+/* Gou shengjun@PSW.MM.Display.LCD.Stable,2018-11-21
+ * fix sde_enc->crtc race
+ */
+	/* sde_enc may released in somewhere */
+	{
+		struct drm_crtc *crtc = sde_enc->crtc;
+
+		if (!crtc || (crtc->index >= ARRAY_SIZE(priv->disp_thread))) {
+			SDE_DEBUG_ENC(sde_enc,
+					"invalid cached CRTC: %d or crtc index: %d\n",
+					crtc == NULL,
+					crtc ? crtc->index : -EINVAL);
+			return;
+		}
+
+		SDE_EVT32_VERBOSE(DRMID(drm_enc));
+
+		disp_thread = &priv->disp_thread[crtc->index];
+	}
+#endif /* VENDOR_EDIT */
 
 	kthread_queue_work(&disp_thread->worker,
 				&sde_enc->input_event_work);
@@ -2581,6 +2603,7 @@ static int sde_encoder_resource_control(struct drm_encoder *drm_enc,
 		mutex_unlock(&sde_enc->rc_lock);
 		break;
 	case SDE_ENC_RC_EVENT_EARLY_WAKEUP:
+#ifndef VENDOR_EDIT
 		if (!sde_enc->crtc ||
 			sde_enc->crtc->index >= ARRAY_SIZE(priv->disp_thread)) {
 			SDE_DEBUG_ENC(sde_enc,
@@ -2592,6 +2615,25 @@ static int sde_encoder_resource_control(struct drm_encoder *drm_enc,
 		}
 
 		disp_thread = &priv->disp_thread[sde_enc->crtc->index];
+#else
+/* Gou shengjun@PSW.MM.Display.LCD.Stable,2018-11-21
+ * fix sde_enc->crtc race
+*/
+		{
+			struct drm_crtc *crtc = sde_enc->crtc;
+
+			if (!crtc || crtc->index >= ARRAY_SIZE(priv->disp_thread)) {
+				SDE_DEBUG_ENC(sde_enc,
+						"invalid crtc:%d or crtc index:%d , sw_event:%u\n",
+						crtc == NULL,
+						crtc ? crtc->index : -EINVAL,
+						sw_event);
+				return -EINVAL;
+			}
+
+			disp_thread = &priv->disp_thread[crtc->index];
+		}
+#endif /* VENDOR_EDIT */
 
 		mutex_lock(&sde_enc->rc_lock);
 
@@ -3175,6 +3217,12 @@ static void sde_encoder_virt_disable(struct drm_encoder *drm_enc)
 	struct sde_encoder_virt *sde_enc = NULL;
 	struct msm_drm_private *priv;
 	struct sde_kms *sde_kms;
+#ifndef VENDOR_EDIT
+/* Gou shengjun@PSW.MM.Display.LCD.Stable,2018-11-21
+ * Add for solve backlight and esd check crash issue
+*/
+	struct drm_connector *drm_conn = NULL;
+#endif
 	enum sde_intf_mode intf_mode;
 	int i = 0;
 
@@ -3203,6 +3251,14 @@ static void sde_encoder_virt_disable(struct drm_encoder *drm_enc)
 
 	SDE_EVT32(DRMID(drm_enc));
 
+#ifndef VENDOR_EDIT
+/* Gou shengjun@PSW.MM.Display.LCD.Stable,2018-11-21
+ * Add for solve backlight and esd check crash issue
+*/
+	/* Disable ESD thread */
+	drm_conn = sde_enc->cur_master->connector;
+	sde_connector_schedule_status_work(drm_conn, false);
+#endif
 	/* wait for idle */
 	sde_encoder_wait_for_event(drm_enc, MSM_ENC_TX_COMPLETE);
 
@@ -3274,7 +3330,7 @@ void sde_encoder_helper_phys_disable(struct sde_encoder_phys *phys_enc,
 
 	if (wb_enc) {
 		if (sde_encoder_helper_reset_mixers(phys_enc,
-				wb_enc->fb_disable))
+				NULL))
 			return;
 
 		if (wb_enc->hw_wb->ops.bind_pingpong_blk) {
@@ -4444,6 +4500,11 @@ static void _helper_flush_dsc(struct sde_encoder_virt *sde_enc)
 	}
 }
 
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2019-03-26 add for dc backlight */
+extern int sde_connector_update_backlight(struct drm_connector *conn);
+extern int sde_connector_update_hbm(struct drm_connector *connector);
+#endif /* VENDOR_EDIT */
 int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 		struct sde_encoder_kickoff_params *params)
 {
@@ -4481,6 +4542,14 @@ int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 	if (sde_enc->cur_master)
 		sde_connector_set_qsync_params(
 				sde_enc->cur_master->connector);
+
+#ifdef VENDOR_EDIT
+/*Mark.Yao@PSW.MM.Display.LCD.Stable,2019-03-26 add for dc backlight */
+	if (sde_enc->cur_master) {
+		sde_connector_update_backlight(sde_enc->cur_master->connector);
+		sde_connector_update_hbm(sde_enc->cur_master->connector);
+	}
+#endif /* VENDOR_EDIT */
 
 	/* prepare for next kickoff, may include waiting on previous kickoff */
 	SDE_ATRACE_BEGIN("sde_encoder_prepare_for_kickoff");
