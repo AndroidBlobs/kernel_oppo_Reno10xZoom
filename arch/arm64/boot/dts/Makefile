@@ -1,30 +1,43 @@
 # SPDX-License-Identifier: GPL-2.0
-dts-dirs += actions
-dts-dirs += al
-dts-dirs += allwinner
-dts-dirs += altera
-dts-dirs += amd
-dts-dirs += amlogic
-dts-dirs += apm
-dts-dirs += arm
-dts-dirs += broadcom
-dts-dirs += cavium
-dts-dirs += exynos
-dts-dirs += freescale
-dts-dirs += hisilicon
-dts-dirs += marvell
-dts-dirs += mediatek
-dts-dirs += nvidia
-dts-dirs += qcom
-dts-dirs += realtek
-dts-dirs += renesas
-dts-dirs += rockchip
-dts-dirs += socionext
-dts-dirs += sprd
-dts-dirs += xilinx
-dts-dirs += lg
-dts-dirs += zte
-
+#ifdef VENDOR_EDIT//Fanhong.Kong@ProDrv.CHG,delete 2018/10/25 for 855
+#dts-dirs += actions
+#dts-dirs += al
+#dts-dirs += allwinner
+#dts-dirs += altera
+#dts-dirs += amd
+#dts-dirs += amlogic
+#dts-dirs += apm
+#dts-dirs += arm
+#dts-dirs += broadcom
+#dts-dirs += cavium
+#dts-dirs += exynos
+#dts-dirs += freescale
+#dts-dirs += hisilicon
+#dts-dirs += marvell
+#dts-dirs += mediatek
+#dts-dirs += nvidia
+#dts-dirs += qcom
+#dts-dirs += realtek
+#dts-dirs += renesas
+#dts-dirs += rockchip
+#dts-dirs += socionext
+#dts-dirs += sprd
+#dts-dirs += xilinx
+#dts-dirs += lg
+#dts-dirs += zte
+#else
+ifeq ($(OPPO_TARGET_DEVICE),MSM_18115)
+dts-dirs += 18115
+else ifeq ($(OPPO_TARGET_DEVICE),MSM_18501)
+dts-dirs += 18501
+else ifeq ($(OPPO_TARGET_DEVICE),MSM_18503)
+dts-dirs += 18503
+else ifeq ($(OPPO_TARGET_DEVICE),MSM_18119)
+dts-dirs += 18119
+else
+dts-dirs += TD11870
+endif
+#endif//VENDOR_EDIT
 subdir-y	:= $(dts-dirs)
 
 dtstree		:= $(srctree)/$(src)
