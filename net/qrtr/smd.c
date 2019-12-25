@@ -68,7 +68,7 @@ static int qcom_smd_qrtr_probe(struct rpmsg_device *rpdev)
 {
 	struct qrtr_smd_dev *qdev;
 	u32 net_id;
-	bool rt;
+        bool rt;
 	int rc;
 
 	qdev = devm_kzalloc(&rpdev->dev, sizeof(*qdev), GFP_KERNEL);
