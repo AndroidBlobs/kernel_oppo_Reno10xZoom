@@ -28,6 +28,8 @@
 
 #define FEATURE_SUPPORTED(x)	((feature_mask << (i * 8)) & (1 << x))
 
+#define OPPO_DEBUG
+
 /* tracks which peripheral is undergoing SSR */
 static uint16_t reg_dirty[NUM_PERIPHERALS];
 static uint8_t diag_id = DIAG_ID_APPS;
@@ -63,6 +65,10 @@ void diag_cntl_channel_close(struct diagfwd_info *p_info)
 	peripheral = p_info->peripheral;
 	if (peripheral >= NUM_PERIPHERALS)
 		return;
+#ifdef OPPO_DEBUG
+	pr_debug("diag: ETS: diag_cntl_channel_close peripheral=%d (+)\n", peripheral);
+#endif /* OPPO_DEBUG */
+
 
 	driver->feature[peripheral].sent_feature_mask = 0;
 	driver->feature[peripheral].rcvd_feature_mask = 0;
@@ -75,6 +81,10 @@ void diag_cntl_channel_close(struct diagfwd_info *p_info)
 	driver->stm_state_requested[peripheral] = DISABLE_STM;
 	reg_dirty[peripheral] = 0;
 	diag_notify_md_client(peripheral, DIAG_STATUS_CLOSED);
+
+#ifdef OPPO_DEBUG
+	pr_debug("diag: ETS: diag_cntl_channel_close peripheral=%d (-)\n", peripheral);
+#endif /* OPPO_DEBUG */
 }
 
 static void diag_stm_update_work_fn(struct work_struct *work)

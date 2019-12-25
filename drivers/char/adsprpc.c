@@ -3234,6 +3234,15 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 
 	snprintf(strpid, PID_SIZE, "%d", current->pid);
 	buf_size = strlen(current->comm) + strlen("_") + strlen(strpid) + 1;
+
+#ifdef VENDOR_EDIT
+	/* yanghao@PSW.Kernel.Stability kasan detect the buf_size < snprintf return size caused 
+	 * the out of bounds. here just alloc the UL_SIZE 2019-01-05
+	 */
+	if (buf_size < UL_SIZE)
+		buf_size = UL_SIZE;
+#endif /*VENDOR_EDIT*/
+
 	VERIFY(err, NULL != (fl->debug_buf = kzalloc(buf_size, GFP_KERNEL)));
 	if (err) {
 		kfree(fl);
@@ -3375,24 +3384,12 @@ static long fastrpc_device_ioctl(struct file *file, unsigned int ioctl_num,
 	} i;
 	void *param = (char *)ioctl_param;
 	struct fastrpc_file *fl = (struct fastrpc_file *)file->private_data;
-	struct fastrpc_apps *me = &gfa;
-	int size = 0, err = 0, session = 0;
+	int size = 0, err = 0;
 	uint32_t info;
 
 	p.inv.fds = NULL;
 	p.inv.attrs = NULL;
 	p.inv.crc = NULL;
-	if (fl->spdname &&
-		!strcmp(fl->spdname, AUDIO_PDR_SERVICE_LOCATION_CLIENT_NAME)) {
-		VERIFY(err, !fastrpc_get_adsp_session(
-			AUDIO_PDR_SERVICE_LOCATION_CLIENT_NAME, &session));
-		if (err)
-			goto bail;
-		if (!me->channel[fl->cid].spd[session].ispdup) {
-			err = -ENOTCONN;
-			goto bail;
-		}
-	}
 	spin_lock(&fl->hlock);
 	if (fl->file_close == 1) {
 		err = EBADF;
@@ -3993,16 +3990,28 @@ static int fastrpc_probe(struct platform_device *pdev)
 		if (range.addr && !of_property_read_bool(dev->of_node,
 							 "restrict-access")) {
 			int srcVM[1] = {VMID_HLOS};
+#ifndef VENDOR_EDIT /* yanghao@PSW.Kernel.Stability modem minidump clear AP mem fix by remove the adsp modem shared memory for bug 1912292 */
 			int destVM[4] = {VMID_HLOS, VMID_MSS_MSA, VMID_SSC_Q6,
+#else
+			int destVM[3] = {VMID_HLOS, VMID_SSC_Q6,
+#endif /* VENDOR_EDIT */
 						VMID_ADSP_Q6};
+#ifndef VENDOR_EDIT /* yanghao@PSW.Kernel.Stability modem minidump clear AP mem fix by remove the adsp modem shared memory for bug 1912292 */
 			int destVMperm[4] = {PERM_READ | PERM_WRITE | PERM_EXEC,
 				PERM_READ | PERM_WRITE | PERM_EXEC,
+#else
+			int destVMperm[3] = {PERM_READ | PERM_WRITE | PERM_EXEC,
+#endif /* VENDOR_EDIT */
 				PERM_READ | PERM_WRITE | PERM_EXEC,
 				PERM_READ | PERM_WRITE | PERM_EXEC,
 				};
 
 			VERIFY(err, !hyp_assign_phys(range.addr, range.size,
+#ifndef VENDOR_EDIT /* yanghao@PSW.Kernel.Stability modem minidump clear AP mem fix by remove the adsp modem shared memory for bug 1912292 */
 					srcVM, 1, destVM, destVMperm, 4));
+#else
+					srcVM, 1, destVM, destVMperm, 3));
+#endif /* VENDOR_EDIT */
 			if (err)
 				goto bail;
 			me->range.addr = range.addr;
