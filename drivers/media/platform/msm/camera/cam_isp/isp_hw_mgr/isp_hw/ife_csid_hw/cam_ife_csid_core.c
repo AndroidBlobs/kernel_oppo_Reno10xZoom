@@ -562,9 +562,12 @@ static int cam_ife_csid_path_reset(struct cam_ife_csid_hw *csid_hw,
 	init_completion(complete);
 	reset_strb_val = csid_reg->cmn_reg->path_rst_stb_all;
 
+#ifndef VENDOR_EDIT
+    /* Jianwei.luo@Cam.Drv 20190306 remove it for bug:1877373, case:03906628 patch */
 	/* Enable the Test gen before reset */
 	cam_io_w_mb(1,	csid_hw->hw_info->soc_info.reg_map[0].mem_base +
 		csid_reg->tpg_reg->csid_tpg_ctrl_addr);
+#endif
 
 	/* Reset the corresponding ife csid path */
 	cam_io_w_mb(reset_strb_val, soc_info->reg_map[0].mem_base +
@@ -580,9 +583,12 @@ static int cam_ife_csid_path_reset(struct cam_ife_csid_hw *csid_hw,
 			rc = -ETIMEDOUT;
 	}
 
+#ifndef VENDOR_EDIT
+    /* Jianwei.luo@Cam.Drv 20190306 remove it for bug:1877373, case:03906628 patch */
 	/* Disable Test Gen after reset*/
 	cam_io_w_mb(0, soc_info->reg_map[0].mem_base +
 		csid_reg->tpg_reg->csid_tpg_ctrl_addr);
+#endif
 
 end:
 	return rc;

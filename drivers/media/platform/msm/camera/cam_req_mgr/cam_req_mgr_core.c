@@ -251,11 +251,14 @@ static int __cam_req_mgr_traverse(struct cam_req_mgr_traverse *traverse_data)
 		}
 	} else {
 		/* This pd table is not ready to proceed with asked idx */
+		/* jianwei.luo@Camera.driver, 2019/02/23, added qcom patch for debug */
 		CAM_INFO(CAM_CRM,
-			"Skip Frame: req: %lld not ready pd: %d open_req count: %d",
+			"Skip Frame: req: %lld not ready pd: %d open_req count: %d, dev_mask:%x, req_ready_mask:%x",
 			CRM_GET_REQ_ID(traverse_data->in_q, curr_idx),
 			tbl->pd,
-			traverse_data->open_req_cnt);
+			traverse_data->open_req_cnt,
+			tbl->dev_mask,
+			slot->req_ready_map);
 		SET_FAILURE_BIT(traverse_data->result, tbl->pd);
 		return -EAGAIN;
 	}
@@ -680,7 +683,6 @@ static int __cam_req_mgr_check_sync_for_mslave(
 	struct cam_req_mgr_slot      *sync_slot = NULL;
 	int sync_slot_idx = 0, prev_idx, next_idx, rd_idx, sync_rd_idx, rc = 0;
 	int64_t req_id = 0, sync_req_id = 0;
-	int32_t sync_num_slots = 0;
 
 	if (!link->sync_link) {
 		CAM_ERR(CAM_CRM, "Sync link null");
@@ -689,7 +691,6 @@ static int __cam_req_mgr_check_sync_for_mslave(
 
 	sync_link = link->sync_link;
 	req_id = slot->req_id;
-	sync_num_slots = sync_link->req.in_q->num_slots;
 	sync_rd_idx = sync_link->req.in_q->rd_idx;
 
 	CAM_DBG(CAM_CRM,
@@ -767,8 +768,7 @@ static int __cam_req_mgr_check_sync_for_mslave(
 
 			if ((sync_link->req.in_q->slot[sync_slot_idx].status !=
 				CRM_SLOT_STATUS_REQ_APPLIED) &&
-				(((sync_slot_idx - rd_idx + sync_num_slots) %
-				sync_num_slots) >= 1) &&
+				((sync_slot_idx - rd_idx) >= 1) &&
 				(sync_link->req.in_q->slot[rd_idx].status !=
 				CRM_SLOT_STATUS_REQ_APPLIED)) {
 				CAM_DBG(CAM_CRM,
@@ -834,8 +834,7 @@ static int __cam_req_mgr_check_sync_for_mslave(
 
 			if ((sync_link->req.in_q->slot[sync_slot_idx].status !=
 				CRM_SLOT_STATUS_REQ_APPLIED) &&
-				(((sync_slot_idx - rd_idx + sync_num_slots) %
-				sync_num_slots) >= 1) &&
+				((sync_slot_idx - rd_idx) >= 1) &&
 				(sync_link->req.in_q->slot[rd_idx].status !=
 				CRM_SLOT_STATUS_REQ_APPLIED)) {
 				CAM_DBG(CAM_CRM,
@@ -892,7 +891,6 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 	struct cam_req_mgr_core_link *sync_link = NULL;
 	int64_t req_id = 0;
 	int sync_slot_idx = 0, sync_rd_idx = 0, rc = 0;
-	int32_t sync_num_slots = 0;
 
 	if (!link->sync_link) {
 		CAM_ERR(CAM_CRM, "Sync link null");
@@ -901,7 +899,6 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 
 	sync_link = link->sync_link;
 	req_id = slot->req_id;
-	sync_num_slots = sync_link->req.in_q->num_slots;
 
 	CAM_DBG(CAM_REQ,
 		"link_hdl %x req %lld frame_skip_flag %d ",
@@ -946,8 +943,7 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 	sync_rd_idx = sync_link->req.in_q->rd_idx;
 	if ((sync_link->req.in_q->slot[sync_slot_idx].status !=
 		CRM_SLOT_STATUS_REQ_APPLIED) &&
-		(((sync_slot_idx - sync_rd_idx + sync_num_slots) %
-		sync_num_slots) >= 1) &&
+		((sync_slot_idx - sync_rd_idx) >= 1) &&
 		(sync_link->req.in_q->slot[sync_rd_idx].status !=
 		CRM_SLOT_STATUS_REQ_APPLIED)) {
 		CAM_DBG(CAM_CRM,
@@ -1041,6 +1037,26 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 			goto error;
 		}
 
+#ifdef VENDOR_EDIT
+		if ((slot->sync_mode == CAM_REQ_MGR_SYNC_MODE_SYNC) &&
+			(link->sync_link)) {
+			if (link->is_master || link->sync_link->is_master) {
+				rc =  __cam_req_mgr_check_sync_for_mslave(
+					link, slot);
+			} else {
+				rc = __cam_req_mgr_check_sync_req_is_ready(
+					link, slot);
+				link->initial_sync_req = -1;
+			}
+		} else {
+			rc = __cam_req_mgr_inject_delay(link->req.l_tbl,
+				slot->idx);
+			if (!rc)
+				rc = __cam_req_mgr_check_link_is_ready(link,
+					slot->idx, false);
+			link->initial_sync_req = -1;
+		}
+#else
 		if ((slot->sync_mode == CAM_REQ_MGR_SYNC_MODE_SYNC) &&
 			(link->sync_link)) {
 			if (link->is_master || link->sync_link->is_master) {
@@ -1076,6 +1092,7 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 				rc = __cam_req_mgr_check_link_is_ready(link,
 					slot->idx, false);
 		}
+#endif
 
 		if (rc < 0) {
 			/*
@@ -1893,9 +1910,7 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 	mutex_lock(&link->req.lock);
 	idx = __cam_req_mgr_find_slot_for_req(link->req.in_q, add_req->req_id);
 	if (idx < 0) {
-		CAM_ERR(CAM_CRM,
-			"req %lld not found in in_q for dev %s on link 0x%x",
-			add_req->req_id, device->dev_info.name, link->link_hdl);
+		CAM_ERR(CAM_CRM, "req %lld not found in in_q", add_req->req_id);
 		rc = -EBADSLT;
 		mutex_unlock(&link->req.lock);
 		goto end;
@@ -1915,10 +1930,8 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 
 	if (slot->state != CRM_REQ_STATE_PENDING &&
 		slot->state != CRM_REQ_STATE_EMPTY) {
-		CAM_WARN(CAM_CRM,
-			"Unexpected state %d for slot %d map %x for dev %s on link 0x%x",
-			slot->state, idx, slot->req_ready_map,
-			device->dev_info.name, link->link_hdl);
+		CAM_WARN(CAM_CRM, "Unexpected state %d for slot %d map %x",
+			slot->state, idx, slot->req_ready_map);
 	}
 
 	slot->state = CRM_REQ_STATE_PENDING;
@@ -2399,7 +2412,8 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 
 		trace_cam_req_mgr_connect_device(link, &dev->dev_info);
 
-		CAM_DBG(CAM_CRM,
+		/* jianwei.luo@Camera.driver, 2019/02/23, added qcom patch for debug */
+		CAM_INFO(CAM_CRM,
 			"%x: connected: %s, id %d, delay %d, trigger %x",
 			link_info->session_hdl, dev->dev_info.name,
 			dev->dev_info.dev_id, dev->dev_info.p_delay,
@@ -2466,6 +2480,10 @@ static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link *link,
 		dev->dev_bit = pd_tbl->dev_count++;
 		dev->pd_tbl = pd_tbl;
 		pd_tbl->dev_mask |= (1 << dev->dev_bit);
+
+		/* jianwei.luo@Camera.driver, 2019/02/23, added qcom patch for debug */
+		CAM_INFO(CAM_CRM, "pd:%d, dev_name:%s, dev_bit:%lld",
+			pd_tbl->pd, dev->dev_info.name, dev->dev_bit);
 
 		/* Communicate with dev to establish the link */
 		dev->ops->link_setup(&link_data);

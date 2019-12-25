@@ -144,11 +144,9 @@ struct cam_hw_stop_args {
  * struct cam_hw_mgr_dump_pf_data - page fault debug data
  *
  * packet:     pointer to packet
- * ctx_id:     context id
  */
 struct cam_hw_mgr_dump_pf_data {
 	void    *packet;
-	uint32_t ctx_id;
 };
 
 /**
@@ -262,6 +260,20 @@ struct cam_hw_dump_pf_args {
 	bool                           *mem_found;
 };
 
+#ifdef VENDOR_EDIT
+/* Jianwei.luo@Cam.Drv 20190306 add it for bug:1877373, case:03906628 patch */
+
+/**
+ * struct cam_hw_reset_args -hw reset arguments
+ *
+ * @ctxt_to_hw_map:        HW context from the acquire
+ *
+ */
+struct cam_hw_reset_args {
+	void                           *ctxt_to_hw_map;
+};
+#endif
+
 /* enum cam_hw_mgr_command - Hardware manager command type */
 enum cam_hw_mgr_command {
 	CAM_HW_MGR_CMD_INTERNAL,
@@ -313,6 +325,7 @@ struct cam_hw_cmd_args {
  * @hw_open:                   Function pointer for HW init
  * @hw_close:                  Function pointer for HW deinit
  * @hw_flush:                  Function pointer for HW flush
+ * @hw_reset:                  Function pointer for HW reset
  *
  */
 struct cam_hw_mgr_intf {
@@ -333,6 +346,10 @@ struct cam_hw_mgr_intf {
 	int (*hw_open)(void *hw_priv, void *fw_download_args);
 	int (*hw_close)(void *hw_priv, void *hw_close_args);
 	int (*hw_flush)(void *hw_priv, void *hw_flush_args);
+#ifdef VENDOR_EDIT
+    /* Jianwei.luo@Cam.Drv 20190306 add it for bug:1877373, case:03906628 patch */
+    int (*hw_reset)(void *hw_priv, void *hw_reset_args);
+#endif
 };
 
 #endif /* _CAM_HW_MGR_INTF_H_ */

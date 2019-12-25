@@ -45,43 +45,16 @@ int cam_cci_init(struct v4l2_subdev *sd,
 
 	CAM_DBG(CAM_CCI, "Base address %pK", base);
 
-	if (cci_dev->ref_count++) {
-		CAM_DBG(CAM_CCI, "ref_count %d", cci_dev->ref_count);
-		master = c_ctrl->cci_info->cci_i2c_master;
-		CAM_DBG(CAM_CCI, "master %d", master);
-		if (master < MASTER_MAX && master >= 0) {
-			mutex_lock(&cci_dev->cci_master_info[master].mutex);
-			flush_workqueue(cci_dev->write_wq[master]);
-			/* Re-initialize the completion */
-			reinit_completion(
-			&cci_dev->cci_master_info[master].reset_complete);
-			for (i = 0; i < NUM_QUEUES; i++)
-				reinit_completion(
-				&cci_dev->cci_master_info[master].report_q[i]);
-			/* Set reset pending flag to TRUE */
-			cci_dev->cci_master_info[master].reset_pending = TRUE;
-			/* Set proper mask to RESET CMD address */
-			if (master == MASTER_0)
-				cam_io_w_mb(CCI_M0_RESET_RMSK,
-					base + CCI_RESET_CMD_ADDR);
-			else
-				cam_io_w_mb(CCI_M1_RESET_RMSK,
-					base + CCI_RESET_CMD_ADDR);
-			/* wait for reset done irq */
-			rc = wait_for_completion_timeout(
-			&cci_dev->cci_master_info[master].reset_complete,
-				CCI_TIMEOUT);
-			if (rc <= 0)
-				CAM_ERR(CAM_CCI, "wait failed %d", rc);
-			mutex_unlock(&cci_dev->cci_master_info[master].mutex);
-		}
+	if ((cci_dev->ref_count) &&
+		(cci_dev->cci_state == CCI_STATE_ENABLED)) {
+		cci_dev->ref_count++;
 		return 0;
 	}
 
+	cci_dev->ref_count++;
 	ahb_vote.type = CAM_VOTE_ABSOLUTE;
 	ahb_vote.vote.level = CAM_SVS_VOTE;
 	axi_vote.compressed_bw = CAM_CPAS_DEFAULT_AXI_BW;
-	axi_vote.compressed_bw_ab = CAM_CPAS_DEFAULT_AXI_BW;
 	axi_vote.uncompressed_bw = CAM_CPAS_DEFAULT_AXI_BW;
 
 	rc = cam_cpas_start(cci_dev->cpas_handle,
@@ -168,7 +141,6 @@ int cam_cci_init(struct v4l2_subdev *sd,
 		base + CCI_I2C_M0_RD_THRESHOLD_ADDR);
 	cam_io_w_mb(CCI_I2C_RD_THRESHOLD_VALUE,
 		base + CCI_I2C_M1_RD_THRESHOLD_ADDR);
-
 	cci_dev->cci_state = CCI_STATE_ENABLED;
 
 	return 0;
