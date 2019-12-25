@@ -203,8 +203,13 @@ void dwc3_ep_inc_deq(struct dwc3_ep *dep)
  */
 int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc, struct dwc3_ep *dep)
 {
-	int		fifo_size, mdwidth, max_packet = 1024;
-	int		tmp, mult = 1, size;
+	int		fifo_size, mdwidth, max_packet = 1024;    
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+	int		tmp, mult = 1, fifo_0_start;
+#else
+	int    tmp, mult = 1, size;
+#endif
 
 	if (!dwc->needs_fifo_resize || !dwc->tx_fifo_size)
 		return 0;
@@ -238,14 +243,22 @@ int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc, struct dwc3_ep *dep)
 	tmp = ((max_packet + mdwidth) * mult) + mdwidth;
 	fifo_size = DIV_ROUND_UP(tmp, mdwidth);
 	dep->fifo_depth = fifo_size;
+#ifdef VENDOR_EDIT
+	/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+	/* Check if TXFIFOs start at non-zero addr */
+	tmp = dwc3_readl(dwc->regs, DWC3_GTXFIFOSIZ(0));
+	fifo_0_start = DWC3_GTXFIFOSIZ_TXFSTADDR(tmp);
 
+	fifo_size |= (fifo_0_start + (dwc->last_fifo_depth << 16));
+#else
 	size = dwc3_readl(dwc->regs, DWC3_GTXFIFOSIZ(0));
 	if (dwc3_is_usb31(dwc))
-		size = DWC31_GTXFIFOSIZ_TXFDEF(size);
+	       size = DWC31_GTXFIFOSIZ_TXFDEF(size);
 	else
-		size = DWC3_GTXFIFOSIZ_TXFDEF(size);
+	       size = DWC3_GTXFIFOSIZ_TXFDEF(size);
 
 	fifo_size |= (size + (dwc->last_fifo_depth << 16));
+#endif
 	if (dwc3_is_usb31(dwc))
 		dwc->last_fifo_depth += DWC31_GTXFIFOSIZ_TXFDEF(fifo_size);
 	else
@@ -365,6 +378,7 @@ int dwc3_send_gadget_generic_command(struct dwc3 *dwc, unsigned cmd, u32 param)
 	return ret;
 }
 
+
 /**
  * dwc3_send_gadget_ep_cmd - issue an endpoint command
  * @dep: the endpoint to which the command is going to be issued
@@ -402,6 +416,7 @@ int dwc3_send_gadget_ep_cmd(struct dwc3_ep *dep, unsigned cmd,
 			dwc3_writel(dwc->regs, DWC3_GUSB2PHYCFG(0), reg);
 		}
 	}
+
 
 	dwc3_writel(dep->regs, DWC3_DEPCMDPAR0, params->param0);
 	dwc3_writel(dep->regs, DWC3_DEPCMDPAR1, params->param1);
@@ -1035,7 +1050,10 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 	struct usb_gadget	*gadget = &dwc->gadget;
 	enum usb_device_speed	speed = gadget->speed;
 
+#ifndef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
 	dwc3_ep_inc_enq(dep);
+#endif
 
 	trb->size = DWC3_TRB_SIZE_LENGTH(length);
 	trb->bpl = lower_32_bits(dma);
@@ -1106,16 +1124,30 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 				usb_endpoint_type(dep->endpoint.desc));
 	}
 
-	/* always enable Continue on Short Packet */
-	if (usb_endpoint_dir_out(dep->endpoint.desc)) {
+	/*
+	 * Enable Continue on Short Packet
+	 * when endpoint is not a stream capable
+	 */
+	if (usb_endpoint_dir_out(dep->endpoint.desc)) {	
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+		if (!dep->stream_capable)
+			trb->ctrl |= DWC3_TRB_CTRL_CSP;
+#else
 		trb->ctrl |= DWC3_TRB_CTRL_CSP;
+#endif
 
 		if (short_not_ok)
 			trb->ctrl |= DWC3_TRB_CTRL_ISP_IMI;
 	}
 
 	if ((!no_interrupt && !chain) ||
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+			(dwc3_calc_trbs_left(dep) == 1))
+#else
 			(dwc3_calc_trbs_left(dep) == 0))
+#endif
 		trb->ctrl |= DWC3_TRB_CTRL_IOC;
 
 	if (chain)
@@ -1125,7 +1157,10 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 		trb->ctrl |= DWC3_TRB_CTRL_SID_SOFN(stream_id);
 
 	trb->ctrl |= DWC3_TRB_CTRL_HWO;
-
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+	dwc3_ep_inc_enq(dep);
+#endif
 	trace_dwc3_prepare_trb(dep, trb);
 }
 
@@ -1238,7 +1273,12 @@ static void dwc3_prepare_one_trb_sg(struct dwc3_ep *dep,
 			/* Now prepare one extra TRB to align transfer size */
 			trb = &dep->trb_pool[dep->trb_enqueue];
 			__dwc3_prepare_one_trb(dep, trb, dwc->bounce_addr,
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+					maxp - rem, false, 1,
+#else
 					maxp - rem, false, 0,
+#endif
 					req->request.stream_id,
 					req->request.short_not_ok,
 					req->request.no_interrupt);
@@ -1257,8 +1297,12 @@ static void dwc3_prepare_one_trb_linear(struct dwc3_ep *dep,
 	unsigned int length = req->request.length;
 	unsigned int maxp = usb_endpoint_maxp(dep->endpoint.desc);
 	unsigned int rem = length % maxp;
-
+#ifdef VENDOR_EDIT
+	/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+	if ((!length || rem) && usb_endpoint_dir_out(dep->endpoint.desc)) {
+#else
 	if (rem && usb_endpoint_dir_out(dep->endpoint.desc)) {
+#endif
 		struct dwc3	*dwc = dep->dwc;
 		struct dwc3_trb	*trb;
 
@@ -1270,7 +1314,12 @@ static void dwc3_prepare_one_trb_linear(struct dwc3_ep *dep,
 		/* Now prepare one extra TRB to align transfer size */
 		trb = &dep->trb_pool[dep->trb_enqueue];
 		__dwc3_prepare_one_trb(dep, trb, dwc->bounce_addr, maxp - rem,
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+				false, 1, req->request.stream_id,
+#else
 				false, 0, req->request.stream_id,
+#endif
 				req->request.short_not_ok,
 				req->request.no_interrupt);
 	} else if (req->request.zero && req->request.length &&
@@ -1286,7 +1335,12 @@ static void dwc3_prepare_one_trb_linear(struct dwc3_ep *dep,
 		/* Now prepare one extra TRB to handle ZLP */
 		trb = &dep->trb_pool[dep->trb_enqueue];
 		__dwc3_prepare_one_trb(dep, trb, dwc->bounce_addr, 0,
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+				false, 1, req->request.stream_id,
+#else
 				false, 0, req->request.stream_id,
+#endif
 				req->request.short_not_ok,
 				req->request.no_interrupt);
 	} else {
@@ -1837,6 +1891,7 @@ static int dwc3_gadget_get_frame(struct usb_gadget *g)
 	return __dwc3_gadget_get_frame(dwc);
 }
 
+
 #define DWC3_PM_RESUME_RETRIES		20    /* Max Number of retries */
 #define DWC3_PM_RESUME_DELAY		100   /* 100 msec */
 
@@ -2084,11 +2139,13 @@ static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on, int suspend)
 		dwc->pullups_connected = true;
 	} else {
 		dwc3_gadget_disable_irq(dwc);
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
 		/* Mask all interrupts */
 		reg1 = dwc3_readl(dwc->regs, DWC3_GEVNTSIZ(0));
 		reg1 |= DWC3_GEVNTSIZ_INTMASK;
 		dwc3_writel(dwc->regs, DWC3_GEVNTSIZ(0), reg1);
-
+#endif
 		dwc->pullups_connected = false;
 
 		__dwc3_gadget_ep_disable(dwc->eps[0]);
@@ -2122,7 +2179,10 @@ static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on, int suspend)
 		dwc3_writel(dwc->regs, DWC3_GEVNTCOUNT(0), reg1);
 		dwc3_notify_event(dwc, DWC3_GSI_EVT_BUF_CLEAR, 0);
 	}
-
+#ifndef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+	dwc3_writel(dwc->regs, DWC3_DCTL, reg);
+#endif
 	do {
 		reg = dwc3_readl(dwc->regs, DWC3_DSTS);
 		reg &= DWC3_DSTS_DEVCTRLHLT;
@@ -2187,8 +2247,10 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 				msecs_to_jiffies(DWC3_PULL_UP_TIMEOUT));
 		if (ret == 0) {
 			dev_err(dwc->dev, "timed out waiting for SETUP phase\n");
+			pm_runtime_put_autosuspend(dwc->dev);
 			dbg_event(0xFF, "Pullup timeout put",
 				atomic_read(&dwc->dev->power.usage_count));
+			return -ETIMEDOUT;
 		}
 	}
 
@@ -2228,7 +2290,11 @@ static void dwc3_gadget_enable_irq(struct dwc3 *dwc)
 
 	if (dwc->revision < DWC3_REVISION_230A)
 		reg |= DWC3_DEVTEN_ULSTCNGEN;
-
+#ifndef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+	else
+		reg |= DWC3_DEVTEN_EOPFEN;
+#endif
 	dwc3_writel(dwc->regs, DWC3_DEVTEN, reg);
 }
 
@@ -2389,8 +2455,11 @@ static int __dwc3_gadget_start(struct dwc3 *dwc)
 
 	/* begin to receive SETUP packets */
 	dwc->ep0state = EP0_SETUP_PHASE;
+	dwc->link_state = DWC3_LINK_STATE_SS_DIS;
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
 	dwc3_ep0_out_start(dwc);
-
+#endif
 	dwc3_gadget_enable_irq(dwc);
 
 	return 0;
@@ -2693,7 +2762,12 @@ static int __dwc3_cleanup_done_trbs(struct dwc3 *dwc, struct dwc3_ep *dep,
 	 * with one TRB pending in the ring. We need to manually clear HWO bit
 	 * from that TRB.
 	 */
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+	if ((req->zero || req->unaligned) && !(trb->ctrl & DWC3_TRB_CTRL_CHN)) {
+#else
 	if ((req->zero || req->unaligned) && (trb->ctrl & DWC3_TRB_CTRL_HWO)) {
+#endif
 		trb->ctrl &= ~DWC3_TRB_CTRL_HWO;
 		return 1;
 	}
@@ -3245,13 +3319,15 @@ static void dwc3_gadget_conndone_interrupt(struct dwc3 *dwc)
 	reg = dwc3_readl(dwc->regs, DWC3_DSTS);
 	speed = reg & DWC3_DSTS_CONNECTSPD;
 	dwc->speed = speed;
-
+#ifdef VENDOR_EDIT
+	/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
 	/* Enable SUSPENDEVENT(BIT:6) for version 230A and above */
 	if (dwc->revision >= DWC3_REVISION_230A) {
 		reg = dwc3_readl(dwc->regs, DWC3_DEVTEN);
 		reg |= DWC3_DEVTEN_EOPFEN;
 		dwc3_writel(dwc->regs, DWC3_DEVTEN, reg);
 	}
+#endif
 
 	/*
 	 * RAMClkSel is reset to 0 after USB reset, so it must be reprogrammed
@@ -3741,16 +3817,24 @@ static irqreturn_t dwc3_thread_interrupt(int irq, void *_evt)
 
 static irqreturn_t dwc3_check_event_buf(struct dwc3_event_buffer *evt)
 {
+#ifdef VENDOR_EDIT
+	/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
 	struct dwc3 *dwc;
+#else
+	struct dwc3 *dwc = evt->dwc;
+#endif
 	u32 amount;
 	u32 count;
 	u32 reg;
 	ktime_t start_time;
 
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
 	if (!evt)
 		return IRQ_NONE;
 
 	dwc = evt->dwc;
+#endif
 	start_time = ktime_get();
 	dwc->irq_cnt++;
 
@@ -3760,6 +3844,8 @@ static irqreturn_t dwc3_check_event_buf(struct dwc3_event_buffer *evt)
 
 	/* Controller is being halted, ignore the interrupts */
 	if (!dwc->pullups_connected) {
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
 		/*
 		 * Even with controller halted, there is a possibility
 		 * that the interrupt line is kept asserted.
@@ -3769,6 +3855,9 @@ static irqreturn_t dwc3_check_event_buf(struct dwc3_event_buffer *evt)
 		count = dwc3_readl(dwc->regs, DWC3_GEVNTCOUNT(0));
 		count &= DWC3_GEVNTCOUNT_MASK;
 		dbg_event(0xFF, "NO_PULLUP", count);
+#else
+		dbg_event(0xFF, "NO_PULLUP", 0);
+#endif
 		return IRQ_HANDLED;
 	}
 
@@ -4003,7 +4092,10 @@ int dwc3_gadget_suspend(struct dwc3 *dwc)
 	dwc3_gadget_run_stop(dwc, false, false);
 	dwc3_disconnect_gadget(dwc);
 	__dwc3_gadget_stop(dwc);
-
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/16,  case 04013764 */
+	synchronize_irq(dwc->irq_gadget);
+#endif
 	return 0;
 }
 

@@ -236,8 +236,12 @@ int xhci_reset(struct xhci_hcd *xhci)
 	 */
 	if (xhci->quirks & XHCI_INTEL_HOST)
 		udelay(1000);
-
+#ifndef VENDOR_EDIT
+/*zhijie.li@BSP.CHG.Basic, 2019/3/27, lzj add for OTG*/
 	ret = xhci_handshake_check_state(xhci, &xhci->op_regs->command,
+#else
+	ret = xhci_handshake(&xhci->op_regs->command,
+#endif
 			CMD_RESET, 0, 10 * 1000 * 1000);
 	if (ret)
 		return ret;

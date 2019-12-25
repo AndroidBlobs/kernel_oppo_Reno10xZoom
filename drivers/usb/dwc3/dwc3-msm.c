@@ -55,6 +55,13 @@
 #include "debug.h"
 #include "xhci.h"
 
+#ifdef VENDOR_EDIT
+	/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/09,  Add for delay headset uevent */
+#include <linux/time.h>
+#include <linux/jiffies.h>
+#include <linux/sched/clock.h>
+#endif
+
 #define SDP_CONNETION_CHECK_TIME 10000 /* in ms */
 
 /* time out to wait for USB cable status notification (in ms)*/
@@ -936,11 +943,6 @@ static int gsi_startxfer_for_ep(struct usb_ep *ep)
 	struct dwc3_ep *dep = to_dwc3_ep(ep);
 	struct dwc3	*dwc = dep->dwc;
 
-	if (!(dep->flags & DWC3_EP_ENABLED)) {
-		dbg_log_string("ep:%s disabled\n", ep->name);
-		return -ESHUTDOWN;
-	}
-
 	memset(&params, 0, sizeof(params));
 	params.param0 = GSI_TRB_ADDR_BIT_53_MASK | GSI_TRB_ADDR_BIT_55_MASK;
 	params.param0 |= (ep->ep_intr_num << 16);
@@ -1115,11 +1117,6 @@ static int gsi_prepare_trbs(struct usb_ep *ep, struct usb_gsi_request *req)
 					: (req->num_bufs + 2);
 	struct scatterlist *sg;
 	struct sg_table *sgt;
-
-	if (!(dep->flags & DWC3_EP_ENABLED)) {
-		dbg_log_string("ep:%s disabled\n", ep->name);
-		return -ESHUTDOWN;
-	}
 
 	dep->trb_pool = dma_zalloc_coherent(dwc->sysdev,
 				num_trbs * sizeof(struct dwc3_trb),
@@ -2012,6 +2009,7 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc, unsigned int event,
 			dwc3_writel(dwc->regs, DWC3_GEVNTCOUNT((i+1)), 0);
 		}
 		break;
+#ifdef VENDOR_EDIT//Fanhong.Kong@PSW.BSP.CHG,add 2019/03/17  for usb device smmu case03921250
 	case DWC3_GSI_EVT_BUF_CLEAR:
 		dev_dbg(mdwc->dev, "DWC3_GSI_EVT_BUF_CLEAR\n");
 		for (i = 0; i < mdwc->num_gsi_event_buffers; i++) {
@@ -2021,6 +2019,7 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc, unsigned int event,
 			dbg_log_string("remaining EVNTCOUNT(%d)=%d", i+1, reg);
 		}
 		break;
+#endif/*VENDOR_EDIT*/
 	case DWC3_GSI_EVT_BUF_FREE:
 		dev_dbg(mdwc->dev, "DWC3_GSI_EVT_BUF_FREE\n");
 		if (!mdwc->gsi_ev_buff)
@@ -2705,6 +2704,10 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
  */
 static void dwc3_ext_event_notify(struct dwc3_msm *mdwc)
 {
+#ifdef VENDOR_EDIT
+	/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/09,  Add for delay headset uevent */
+	static unsigned long long t = 0;
+#endif
 	/* Flush processing any pending events before handling new ones */
 	flush_delayed_work(&mdwc->sm_work);
 
@@ -2732,7 +2735,19 @@ static void dwc3_ext_event_notify(struct dwc3_msm *mdwc)
 		clear_bit(B_SUSPEND, &mdwc->inputs);
 	}
 
-	queue_delayed_work(mdwc->sm_usb_wq, &mdwc->sm_work, 0);
+#ifdef VENDOR_EDIT
+	/* tongfeng.Huang@BSP.CHG.Basic, 2019/05/09,  Add for delay headset uevent */
+	if(t <= 12)
+		t = cpu_clock(smp_processor_id())/1000000000;//convert to s
+
+	dev_dbg(mdwc->dev, "last_secs %lu\n",t);
+	if(t<=12)
+		queue_delayed_work(mdwc->sm_usb_wq, &mdwc->sm_work, msecs_to_jiffies(5000));
+	else
+		queue_delayed_work(mdwc->sm_usb_wq, &mdwc->sm_work, 0);
+#else
+		queue_delayed_work(mdwc->sm_usb_wq, &mdwc->sm_work, 0);
+#endif
 }
 
 static void dwc3_resume_work(struct work_struct *w)
@@ -3328,8 +3343,8 @@ static ssize_t speed_store(struct device *dev, struct device_attribute *attr,
 		schedule_work(&mdwc->restart_usb_work);
 	} else if (req_speed >= dwc->max_hw_supp_speed) {
 		mdwc->override_usb_speed = 0;
-	}
-
+       }
+	
 	return count;
 }
 static DEVICE_ATTR_RW(speed);
@@ -4054,6 +4069,10 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 				atomic_read(&mdwc->dev->power.usage_count));
 			return ret;
 		}
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@BSP.CHG.Basic, 2017/02/18, sjc Add for OTG sw */
+		pr_err("[OPPO_CHG][%s]OTG regulator_enable\n",__func__);
+#endif
 
 
 		mdwc->host_nb.notifier_call = dwc3_msm_host_notifier;
@@ -4123,6 +4142,10 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 			dev_err(mdwc->dev, "unable to disable vbus_reg\n");
 			return ret;
 		}
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@BSP.CHG.Basic, 2017/02/18, sjc Add for OTG sw */
+		pr_err("[OPPO_CHG][%s] OTG disable_regulator\n",__func__);
+#endif
 
 		cancel_delayed_work_sync(&mdwc->perf_vote_work);
 		msm_dwc3_perf_vote_update(mdwc, false);
@@ -4345,6 +4368,16 @@ static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned int mA)
 
 	if (mdwc->max_power == mA || psy_type != POWER_SUPPLY_TYPE_USB)
 		return 0;
+
+#ifdef VENDOR_EDIT
+	/* Jianchao.Shi@BSP.CHG.Basic, 2017/05/04, sjc Add for charging */
+	dev_info(mdwc->dev, "Avail curr from USB = %u, pre max_power = %u\n", mA, mdwc->max_power);
+	if (mA == 0 || mA == 2) {
+		return 0;
+	}
+#else
+	dev_info(mdwc->dev, "Avail curr from USB = %u\n", mA);
+#endif
 
 	/* Set max current limit in uA */
 	pval.intval = 1000 * mA;

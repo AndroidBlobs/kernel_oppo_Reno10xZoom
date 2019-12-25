@@ -89,7 +89,6 @@ struct gadget_info {
 	struct usb_composite_driver composite;
 	struct usb_composite_dev cdev;
 	bool use_os_desc;
-	bool unbinding;
 	char b_vendor_code;
 	char qw_sign[OS_STRING_QW_SIGN_LEN];
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
@@ -287,12 +286,9 @@ static int unregister_gadget(struct gadget_info *gi)
 	if (!gi->composite.gadget_driver.udc_name)
 		return -ENODEV;
 
-	gi->unbinding = true;
 	ret = usb_gadget_unregister_driver(&gi->composite.gadget_driver);
 	if (ret)
 		return ret;
-
-	gi->unbinding = false;
 	kfree(gi->composite.gadget_driver.udc_name);
 	gi->composite.gadget_driver.udc_name = NULL;
 	return 0;
@@ -1572,8 +1568,16 @@ static void android_disconnect(struct usb_gadget *gadget)
 	acc_disconnect();
 #endif
 	gi->connected = 0;
-	if (!gi->unbinding)
-		schedule_work(&gi->work);
+#ifdef VENDOR_EDIT
+        /* zhangkun@BSP.BaseDrv.CHG.Basic, 2019/01/28, disconnect and connect timeout*/
+        if (strstr(current->comm, "init") && !in_interrupt())
+            pr_notice("%s, SKIP work, in_irq<%d>\n", __func__, (int)in_interrupt());
+        else
+            schedule_work(&gi->work);
+#else
+        schedule_work(&gi->work);
+#endif
+
 	composite_disconnect(gadget);
 }
 #endif

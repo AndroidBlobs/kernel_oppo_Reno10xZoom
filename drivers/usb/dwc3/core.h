@@ -855,9 +855,14 @@ struct dwc3_scratchpad_array {
 #define DWC3_GSI_EVT_BUF_ALLOC			10
 #define DWC3_GSI_EVT_BUF_SETUP			11
 #define DWC3_GSI_EVT_BUF_CLEANUP		12
+#ifndef VENDOR_EDIT//Fanhong.Kong@PSW.BSP.CHG,add 2019/03/17  for usb device smmu case03921250
+//#define DWC3_GSI_EVT_BUF_FREE			13
+//#define DWC3_CONTROLLER_NOTIFY_CLEAR_DB		14
+#else/*VENDOR_EDIT*/
 #define DWC3_GSI_EVT_BUF_CLEAR			13
 #define DWC3_GSI_EVT_BUF_FREE			14
 #define DWC3_CONTROLLER_NOTIFY_CLEAR_DB		15
+#endif/*VENDOR_EDIT*/
 
 #define MAX_INTR_STATS				10
 
