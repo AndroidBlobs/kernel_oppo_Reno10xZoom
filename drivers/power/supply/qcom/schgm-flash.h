@@ -15,6 +15,11 @@
 
 #include <linux/bitops.h>
 
+#ifdef VENDOR_EDIT
+/* zhangkun@BSP.CHG.Basic, 2019/03/25, Add for charging */
+#include "../../oppo/charger_ic/oppo_battery_msm8150.h"
+#endif
+
 #define SCHGM_FLASH_BASE			0xA600
 
 #define SCHGM_FLASH_STATUS_2_REG		(SCHGM_FLASH_BASE + 0x07)
