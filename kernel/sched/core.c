@@ -4899,8 +4899,9 @@ out_put_task:
 }
 
 char sched_lib_name[LIB_PATH_LENGTH];
+unsigned int sched_lib_mask_check;
 unsigned int sched_lib_mask_force;
-bool is_sched_lib_based_app(pid_t pid)
+static inline bool is_sched_lib_based_app(pid_t pid)
 {
 	const char *name = NULL;
 	struct vm_area_struct *vma;
@@ -4952,6 +4953,19 @@ put_task_struct:
 	return found;
 }
 
+long msm_sched_setaffinity(pid_t pid, struct cpumask *new_mask)
+{
+	if (sched_lib_mask_check != 0 && sched_lib_mask_force != 0 &&
+		(cpumask_bits(new_mask)[0] == sched_lib_mask_check) &&
+		is_sched_lib_based_app(pid)) {
+
+		cpumask_t forced_mask = { {sched_lib_mask_force} };
+
+		cpumask_copy(new_mask, &forced_mask);
+	}
+	return sched_setaffinity(pid, new_mask);
+}
+
 static int get_user_cpu_mask(unsigned long __user *user_mask_ptr, unsigned len,
 			     struct cpumask *new_mask)
 {
@@ -4982,7 +4996,7 @@ SYSCALL_DEFINE3(sched_setaffinity, pid_t, pid, unsigned int, len,
 
 	retval = get_user_cpu_mask(user_mask_ptr, len, new_mask);
 	if (retval == 0)
-		retval = sched_setaffinity(pid, new_mask);
+		retval = msm_sched_setaffinity(pid, new_mask);
 	free_cpumask_var(new_mask);
 	return retval;
 }
@@ -6002,6 +6016,7 @@ out:
 	cpu_maps_update_done();
 	trace_sched_isolate(cpu, cpumask_bits(cpu_isolated_mask)[0],
 			    start_time, 1);
+	pr_info("sched_isolate: cpu %d mask:0x%x\n", cpu, cpumask_bits(cpu_isolated_mask)[0]);
 	return ret_code;
 }
 
@@ -6051,6 +6066,7 @@ int sched_unisolate_cpu_unlocked(int cpu)
 out:
 	trace_sched_isolate(cpu, cpumask_bits(cpu_isolated_mask)[0],
 			    start_time, 0);
+	pr_info("sched_unisolate: cpu %d mask:0x%x\n", cpu, cpumask_bits(cpu_isolated_mask)[0]);
 	return ret_code;
 }
 
@@ -6901,6 +6917,7 @@ static void sched_update_updown_migrate_values(unsigned int *data,
 						 cluster_cpus);
 }
 
+static DEFINE_MUTEX(mutex);
 int sched_updown_migrate_handler(struct ctl_table *table, int write,
 				 void __user *buffer, size_t *lenp,
 				 loff_t *ppos)
@@ -6908,7 +6925,6 @@ int sched_updown_migrate_handler(struct ctl_table *table, int write,
 	int ret, i;
 	unsigned int *data = (unsigned int *)table->data;
 	unsigned int *old_val;
-	static DEFINE_MUTEX(mutex);
 	static int cap_margin_levels = -1;
 
 	mutex_lock(&mutex);
@@ -6967,6 +6983,95 @@ unlock_mutex:
 
 	return ret;
 }
+
+#ifdef VENDOR_EDIT
+static int find_max_clusters(void)
+{
+	int cpu;
+	static int s_max_clusters = -1;
+
+	if (likely(s_max_clusters != -1))
+		goto out_find;
+
+	for (cpu = s_max_clusters = 0; cpu < num_possible_cpus();) {
+		cpu += cpumask_weight(topology_core_cpumask(cpu));
+		s_max_clusters++;
+	}
+
+out_find:
+	return s_max_clusters;
+}
+
+int sched_get_updown_migrate(unsigned int *up_pct, unsigned int *down_pct)
+{
+	int i, max_clusters;
+
+	if (!up_pct || !down_pct) {
+		pr_err("%s: up_pct or down_pct is null\n", __func__);
+		return -EINVAL;
+	}
+
+	mutex_lock(&mutex);
+
+	max_clusters = find_max_clusters();
+	if (max_clusters <= 1) {
+		pr_err("%s: the value of max clusters is %d\n",
+			__func__, max_clusters);
+		mutex_unlock(&mutex);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < max_clusters - 1; i++) {
+		up_pct[i] = SCHED_FIXEDPOINT_SCALE * 100
+			/ sysctl_sched_capacity_margin_up[i];
+		down_pct[i] = SCHED_FIXEDPOINT_SCALE * 100
+			/ sysctl_sched_capacity_margin_down[i];
+	}
+
+	mutex_unlock(&mutex);
+
+	return 0;
+}
+EXPORT_SYMBOL(sched_get_updown_migrate);
+
+int sched_set_updown_migrate(unsigned int *up_pct, unsigned int *down_pct)
+{
+	int i, max_clusters;
+
+	if (!up_pct || !down_pct) {
+		pr_err("%s: up_pct or down_pct is null\n", __func__);
+		return -EINVAL;
+	}
+
+	mutex_lock(&mutex);
+
+	max_clusters = find_max_clusters();
+	if (max_clusters <= 1) {
+		pr_err("%s: the value of max clusters is %d\n",
+			__func__, max_clusters);
+		mutex_unlock(&mutex);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < max_clusters - 1; i++) {
+		sysctl_sched_capacity_margin_up[i]
+			= SCHED_FIXEDPOINT_SCALE * 100 / up_pct[i];
+		sysctl_sched_capacity_margin_down[i]
+			= SCHED_FIXEDPOINT_SCALE * 100 / down_pct[i];
+	}
+
+	sched_update_updown_migrate_values(sysctl_sched_capacity_margin_up,
+						max_clusters - 1);
+
+	sched_update_updown_migrate_values(sysctl_sched_capacity_margin_down,
+						max_clusters - 1);
+
+	mutex_unlock(&mutex);
+
+	return 0;
+}
+EXPORT_SYMBOL(sched_set_updown_migrate);
+#endif
 #endif
 
 static inline struct task_group *css_tg(struct cgroup_subsys_state *css)

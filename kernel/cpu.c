@@ -1045,6 +1045,7 @@ static int do_cpu_down(unsigned int cpu, enum cpuhp_state target)
 
 int cpu_down(unsigned int cpu)
 {
+	pr_info("cpu_down %d mask 0x%x\n", cpu, cpumask_bits(cpu_online_mask)[0]);
 	return do_cpu_down(cpu, CPUHP_OFFLINE);
 }
 EXPORT_SYMBOL(cpu_down);
@@ -1236,6 +1237,7 @@ out:
 
 int cpu_up(unsigned int cpu)
 {
+	pr_info("cpu_up %d mask 0x%x\n", cpu, cpumask_bits(cpu_online_mask)[0]);
 	return do_cpu_up(cpu, CPUHP_ONLINE);
 }
 EXPORT_SYMBOL_GPL(cpu_up);

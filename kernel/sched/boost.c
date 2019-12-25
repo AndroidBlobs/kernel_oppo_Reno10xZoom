@@ -287,3 +287,8 @@ done:
 	mutex_unlock(&boost_mutex);
 	return ret;
 }
+
+int sched_boost(void)
+{
+	return sysctl_sched_boost;
+}

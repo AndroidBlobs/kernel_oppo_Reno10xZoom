@@ -213,8 +213,6 @@ static void alarmtimer_dequeue(struct alarm_base *base, struct alarm *alarm)
 	timerqueue_del(&base->timerqueue, &alarm->node);
 	alarm->state &= ~ALARMTIMER_STATE_ENQUEUED;
 }
-
-
 /**
  * alarmtimer_fired - Handles alarm hrtimer being fired.
  * @timer: pointer to hrtimer being run
